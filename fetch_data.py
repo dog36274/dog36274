@@ -71,9 +71,33 @@ def http_get(url, params=None, headers=None, retries=3, timeout=45):
     raise RuntimeError(f"GET {url.split('?')[0]} failed: {last}")
 
 
+YAHOO_SYMBOLS = {"usdkrw": "KRW=X", "xauusd": "XAU=X", "emb.us": "EMB"}
+
+
+def yahoo_finance(symbol):
+    """Fallback when Stooq is blocked: daily close series from Yahoo Finance's public
+    chart API (no key required). Only covers the symbols in YAHOO_SYMBOLS."""
+    if DEMO:
+        return demo_series(symbol)
+    yf_symbol = YAHOO_SYMBOLS.get(symbol)
+    if not yf_symbol:
+        raise RuntimeError(f"no Yahoo Finance mapping for {symbol}")
+    j = http_get(f"https://query1.finance.yahoo.com/v8/finance/chart/{yf_symbol}",
+                params={"range": "2y", "interval": "1d"},
+                headers={"Accept": "application/json"}).json()
+    result = (j.get("chart") or {}).get("result")
+    if not result:
+        raise RuntimeError(f"Yahoo Finance {yf_symbol}: {(j.get('chart') or {}).get('error')}")
+    r = result[0]
+    closes = r["indicators"]["quote"][0]["close"]
+    idx = pd.to_datetime(r["timestamp"], unit="s").normalize()
+    return pd.Series(closes, index=idx, name=symbol).dropna().astype(float).sort_index()
+
+
 def stooq(symbol):
-    """Daily close series from Stooq CSV. Raises if Stooq returns a non-CSV page
-    (Stooq sometimes demands an API key; set STOOQ_API_KEY if so)."""
+    """Daily close series from Stooq CSV, falling back to Yahoo Finance if Stooq
+    returns a non-CSV page (Stooq sometimes demands an API key; set STOOQ_API_KEY,
+    or blocks automated requests with a JS challenge that no key can bypass)."""
     if DEMO:
         return demo_series(symbol)
     params = {"s": symbol, "i": "d"}
@@ -91,10 +115,13 @@ def stooq(symbol):
             text = None
         except Exception as e:  # noqa: BLE001
             last_err = str(e)
-    if text is None:
-        raise RuntimeError(f"Stooq {symbol}: {last_err}")
-    df = pd.read_csv(StringIO(text), parse_dates=["Date"]).dropna(subset=["Close"])
-    return df.set_index("Date")["Close"].astype(float).sort_index()
+    if text is not None:
+        df = pd.read_csv(StringIO(text), parse_dates=["Date"]).dropna(subset=["Close"])
+        return df.set_index("Date")["Close"].astype(float).sort_index()
+    try:
+        return yahoo_finance(symbol)
+    except Exception as e:  # noqa: BLE001
+        raise RuntimeError(f"Stooq {symbol}: {last_err}; Yahoo Finance fallback also failed: {e}")
 
 
 def fred(series_id, start="2023-01-01"):
