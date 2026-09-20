@@ -628,11 +628,31 @@ def scrape_krx_foreign_net_buy():
         vals = rng.normal(0, 400, len(idx))   # net buy/sell oscillates around zero
         return pd.Series(vals, index=idx)
     page = http_get("http://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd",
-                    params={"menuId": "MDC0201020101"})
+                    params={"menuId": "MDC0201020101"},
+                    headers={"Referer": "http://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd"})
     text = page.text
     blds = list(dict.fromkeys(re.findall(r'bld["\']?\s*[:=]\s*["\']([^"\']+)["\']', text)))
-    raise RuntimeError(f"KRX: page fetched (status {page.status_code}, {len(text)} chars) but the "
-                       f"OTP-download flow isn't built yet; bld candidates found on the page={blds[:15]}")
+    if blds:
+        raise RuntimeError(f"KRX: page fetched (status {page.status_code}, {len(text)} chars); "
+                           f"bld candidates found on the page={blds[:15]}")
+    # The page itself was too small to contain real config (a JS-rendered shell,
+    # same situation DMO's gilts-in-issue page was in) - pull its script bundles
+    # and search those instead, and include the whole (short) shell body since
+    # there's no point truncating a couple hundred characters.
+    srcs = re.findall(r'<script[^>]+src="([^"]+)"', text)
+    js_hits = {}
+    for src in srcs[:8]:
+        js_url = src if src.startswith("http") else f"http://data.krx.co.kr{src}"
+        try:
+            js = http_get(js_url).text
+        except Exception:  # noqa: BLE001
+            continue
+        hits = list(dict.fromkeys(re.findall(r'bld["\']?\s*[:=]\s*["\']([^"\']+)["\']', js)))
+        if hits:
+            js_hits[src] = hits[:10]
+    raise RuntimeError(f"KRX: page too small for real content (status {page.status_code}, "
+                       f"{len(text)} chars, body={text!r}); scripts found={srcs[:10]}; "
+                       f"bld candidates from those scripts={js_hits}")
 
 
 # --------------------------------- panels -----------------------------------
