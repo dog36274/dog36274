@@ -384,21 +384,28 @@ def scrape_dmo():
                 engine = "xlrd"
             else:
                 # Still the interactive page shell, not real data - the session cookie
-                # trick wasn't enough either. Pull API-looking paths out of its script
-                # bundles so the real endpoint can be found without a browser.
-                srcs = re.findall(r'<script[^>]+src="([^"]+)"', r.text)[:4]
-                api_hints = []
+                # trick wasn't enough either. A prior run's diagnostic found this page's
+                # actual script bundles include DataReport.js / ExportData.js /
+                # ExportDataReport.js - very likely where the real export call is built.
+                # Search their content broadly (any quoted string mentioning "export",
+                # not just ones already shaped like /api/... or /data/...) and dump a
+                # chunk of the export-named ones directly for full visibility.
+                srcs = re.findall(r'<script[^>]+src="([^"]+)"', r.text)[:8]
+                api_hints, js_snippets = [], {}
                 for src in srcs:
                     js_url = src if src.startswith("http") else f"https://www.dmo.gov.uk{src}"
                     try:
                         js = sess.get(js_url, timeout=45).text
                     except Exception:  # noqa: BLE001
                         continue
-                    api_hints += re.findall(r'["\'](/(?:api|data)/[^"\']{3,60})["\']', js)
-                snippet = re.sub(r"\s+", " ", r.text)[:300]
-                raise RuntimeError(f"unrecognised export format (status {r.status_code}, "
-                                   f"first bytes {r.content[:8]!r}, body {snippet!r}); "
-                                   f"scripts={srcs}; api-path candidates={sorted(set(api_hints))[:15]}")
+                    api_hints += re.findall(r'["\']([^"\']{0,100}[Ee]xport[^"\']{0,100})["\']', js)
+                    if "export" in src.lower():
+                        js_snippets[src] = js[:2000]
+                snippet = re.sub(r"\s+", " ", r.text)[:200]
+                raise RuntimeError(f"unrecognised export format (status {r.status_code}); "
+                                   f"scripts={srcs}; export-string candidates="
+                                   f"{sorted(set(api_hints))[:20]}; body {snippet!r}; "
+                                   f"export-script snippets={js_snippets}")
             tables = list(pd.read_excel(BytesIO(r.content), sheet_name=None, header=None, engine=engine).values())
         best = None
         for t in tables:
