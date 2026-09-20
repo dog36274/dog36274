@@ -164,6 +164,39 @@ def boe(codes, start="2023-01-01"):
     return df.set_index("DATE").apply(pd.to_numeric, errors="coerce").sort_index()
 
 
+def boe_gilt_30y():
+    """UK 30y nominal par gilt yield. BOE_SERIES's legacy IADB series only goes out to
+    20y ('long') - there's no equivalent single-series code for 30y there. Pulled
+    instead from BoE's published daily nominal yield curve workbook, which reports a
+    full curve including 30y. The exact sheet/column layout hasn't been seen live, so
+    on any parsing miss this raises with enough of the workbook's structure (sheet
+    names, header row candidates) to fix precisely rather than guess again blind."""
+    if DEMO:
+        return demo_series("boe:gilt30")
+    url = "https://www.bankofengland.co.uk/-/media/boe/files/statistics/yield-curves/glcnominalddata.xlsx"
+    content = http_get(url).content
+    xl = pd.ExcelFile(BytesIO(content))
+    sheet = next((s for s in xl.sheet_names if "spot" in s.lower() or "curve" in s.lower()),
+                xl.sheet_names[0])
+    raw = xl.parse(sheet, header=None)
+    header_row = next((i for i in range(min(10, len(raw)))
+                       if any(str(v).strip() in ("30", "30.0", "30.00") for v in raw.iloc[i])), None)
+    if header_row is None:
+        raise RuntimeError(f"no 30y header found in sheet {sheet!r} of {xl.sheet_names}; "
+                           f"top rows={raw.head(6).values.tolist()}")
+    df = xl.parse(sheet, header=header_row, index_col=0)
+    col30 = next((c for c in df.columns if str(c).strip() in ("30", "30.0", "30.00")), None)
+    if col30 is None:
+        raise RuntimeError(f"30y header row {header_row} found but column missing; "
+                           f"columns={list(df.columns)[:15]}")
+    s = pd.to_numeric(df[col30], errors="coerce")
+    s.index = pd.to_datetime(s.index, errors="coerce")
+    s = s[s.index.notna()].dropna().sort_index()
+    if not len(s):
+        raise RuntimeError(f"30y column {col30!r} found but no numeric data")
+    return s
+
+
 def bok_base_rate(start="2023-01-01"):
     """BoK base rate from ECOS (stat 722Y001, item 0101000, daily)."""
     if DEMO:
@@ -194,10 +227,11 @@ def ons(cdid):
 
 # ------------------------------ demo generator ------------------------------
 DEMO_BASE = {"usdkrw": (1440, .004), "xauusd": (3900, .009), "emb.us": (92, .003),
-             "fred:DGS2": (3.7, .01), "fred:DGS10": (4.2, .008), "fred:DFF": (4.1, 0),
+             "fred:DGS2": (3.7, .01), "fred:DGS10": (4.2, .008), "fred:DGS30": (4.6, .007),
+             "fred:DFF": (4.1, 0),
              "fred:CPIAUCSL": (320, .0003), "fred:DFII10": (1.8, .012), "bok": (2.5, 0),
              "boe:IUDBEDR": (3.75, 0), "boe:IUDSNPY": (3.9, .01), "boe:IUDMNPY": (4.5, .008),
-             "boe:IUDLNPY": (5.1, .006)}
+             "boe:IUDLNPY": (5.1, .006), "boe:gilt30": (5.3, .006)}
 
 
 def demo_series(name):
@@ -288,8 +322,17 @@ def scrape_dmo():
         return {"gilts_in_issue_gbp_bn": 2500.0, "remit_gbp_bn": 300.0, "source": "demo"}
     out, notes = {"source": "DMO (scraped)"}, []
     try:
-        r = http_get("https://www.dmo.gov.uk/data/ExportReport", params={"reportCode": "D1A"},
-                    headers={"Referer": "https://www.dmo.gov.uk/data/gilt-market/gilts-in-issue/"})
+        # A plain GET got back the "Gilts in Issue" interactive page itself, not the
+        # export - most likely because the export needs the session cookie a browser
+        # would pick up from visiting the report page first. Use a session so that
+        # cookie (and Referer) carry over, same as a real page-then-download flow.
+        sess = requests.Session()
+        sess.headers.update({"User-Agent": UA})
+        gilts_page_url = "https://www.dmo.gov.uk/data/gilt-market/gilts-in-issue/"
+        sess.get(gilts_page_url, timeout=45)
+        r = sess.get("https://www.dmo.gov.uk/data/ExportReport", params={"reportCode": "D1A"},
+                    headers={"Referer": gilts_page_url}, timeout=45)
+        r.raise_for_status()
         try:
             if b"<html" not in r.content[:200].lower():
                 raise RuntimeError("not-html")  # skip read_html's own noisy failure path
@@ -302,9 +345,22 @@ def scrape_dmo():
             elif r.content[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1":
                 engine = "xlrd"
             else:
-                snippet = re.sub(r"\s+", " ", r.text)[:300] if hasattr(r, "text") else ""
+                # Still the interactive page shell, not real data - the session cookie
+                # trick wasn't enough either. Pull API-looking paths out of its script
+                # bundles so the real endpoint can be found without a browser.
+                srcs = re.findall(r'<script[^>]+src="([^"]+)"', r.text)[:4]
+                api_hints = []
+                for src in srcs:
+                    js_url = src if src.startswith("http") else f"https://www.dmo.gov.uk{src}"
+                    try:
+                        js = sess.get(js_url, timeout=45).text
+                    except Exception:  # noqa: BLE001
+                        continue
+                    api_hints += re.findall(r'["\'](/(?:api|data)/[^"\']{3,60})["\']', js)
+                snippet = re.sub(r"\s+", " ", r.text)[:300]
                 raise RuntimeError(f"unrecognised export format (status {r.status_code}, "
-                                   f"first bytes {r.content[:8]!r}, body {snippet!r})")
+                                   f"first bytes {r.content[:8]!r}, body {snippet!r}); "
+                                   f"scripts={srcs}; api-path candidates={sorted(set(api_hints))[:15]}")
             tables = list(pd.read_excel(BytesIO(r.content), sheet_name=None, header=None, engine=engine).values())
         best = None
         for t in tables:
@@ -413,6 +469,11 @@ def panel_us():
               "series": {"ust2": pairs(d2), "ust10": pairs(d10), "curve_2s10s_bp": pairs(curve)},
               "fed": rate_status(dff, "fed", bucket=0.25)}
     p.data["series"]["dff"] = pairs(dff)
+    d30 = p.optional("UST 30Y", lambda: fred("DGS30"))
+    if d30 is not None and len(d30):
+        p.snap["ust30"] = last(d30)[0]
+        p.data["latest"]["ust30"] = last(d30)
+        p.data["series"]["ust30"] = pairs(d30)
     cpi = p.optional("CPI", lambda: fred("CPIAUCSL", start="2020-01-01"))
     if cpi is not None:
         yoy = (cpi.pct_change(12) * 100).dropna()
@@ -461,14 +522,25 @@ def panel_uk():
     g10 = df["gilt_10y"].dropna()
     p.snap["gilt10"] = float(g10.iloc[-1])
     p.snap["bank_rate"] = float(br.iloc[-1])
+    # 30y isn't in the core BOE_SERIES set (fetched separately, from a different BoE
+    # dataset) - kept fully optional so a miss there can't break the panel's other,
+    # already-working series.
+    g30 = p.optional("BoE 30Y gilt", boe_gilt_30y)
+    curve_cols = ["gilt_5y", "gilt_10y", "gilt_20y"]
+    df_curve = df.join(g30.rename("gilt_30y")) if g30 is not None and len(g30) else df
+    if "gilt_30y" in df_curve.columns:
+        curve_cols.append("gilt_30y")
     curve = {}
     for label, offset in (("now", 0), ("1m ago", 21), ("1y ago", 252)):
-        row = df[["gilt_5y", "gilt_10y", "gilt_20y"]].dropna()
+        row = df_curve[curve_cols].dropna()
         if len(row) > offset:
             r = row.iloc[-1 - offset]
-            curve[label] = {"date": row.index[-1 - offset].strftime("%Y-%m-%d"),
-                            "5y": round(r["gilt_5y"], 3), "10y": round(r["gilt_10y"], 3),
-                            "20y": round(r["gilt_20y"], 3)}
+            entry = {"date": row.index[-1 - offset].strftime("%Y-%m-%d"),
+                     "5y": round(r["gilt_5y"], 3), "10y": round(r["gilt_10y"], 3),
+                     "20y": round(r["gilt_20y"], 3)}
+            if "gilt_30y" in curve_cols:
+                entry["30y"] = round(r["gilt_30y"], 3)
+            curve[label] = entry
     p.data = {"latest": {"gilt10": last(g10), "bank_rate": last(br)},
               "series": {"gilt10": pairs(g10), "bank_rate": pairs(br)},
               "curve": curve, "boe": rate_status(br, "boe"), "ons": {}, "dmo": dmo_data(p)}

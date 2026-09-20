@@ -190,12 +190,13 @@ function addRefLines(ch, lines) {   // dashed horizontal reference lines (entry 
 function drawUS(el) {
   const d = D.us_rates; if (!d) return missing(el);
   const L = d.latest;
-  el.innerHTML = `<div class="tiles">${tile('UST 2Y', fmt(first(L.ust2)) + '%', asOf(L.ust2))}${tile('UST 10Y', fmt(first(L.ust10)) + '%', asOf(L.ust10))}
+  el.innerHTML = `<div class="tiles">${tile('UST 2Y', fmt(first(L.ust2)) + '%', asOf(L.ust2))}${tile('UST 10Y', fmt(first(L.ust10)) + '%', asOf(L.ust10))}${L.ust30 ? tile('UST 30Y', fmt(first(L.ust30)) + '%', asOf(L.ust30)) : ''}
     ${tile('2s10s', fmt(L.curve_2s10s_bp, 0) + 'bp')}${L.cpi_yoy ? tile('CPI YoY', fmt(first(L.cpi_yoy)) + '%', asOf(L.cpi_yoy)) : ''}</div>
     ${rateBox('Fed funds (effective)', d.fed)}
-    <div class="charts">${chartBox('UST 2Y vs 10Y yield (%)', 'c-ust')}${chartBox('2s10s curve slope (bp)', 'c-curve')}
+    <div class="charts">${chartBox('UST 2Y / 10Y' + (d.series.ust30 ? ' / 30Y' : '') + ' yield (%)', 'c-ust')}${chartBox('2s10s curve slope (bp)', 'c-curve')}
     ${d.series.cpi_yoy ? chartBox('CPI-U, year-on-year (%)', 'c-cpi') : ''}</div>${warnHtml(d)}`;
-  lineChart(el.querySelector('#c-ust'), [{label: '2Y', pairs: d.series.ust2, color: '--s1'}, {label: '10Y', pairs: d.series.ust10, color: '--s2'}], {unit: '%'});
+  lineChart(el.querySelector('#c-ust'), [{label: '2Y', pairs: d.series.ust2, color: '--s1'}, {label: '10Y', pairs: d.series.ust10, color: '--s2'},
+    ...(d.series.ust30 ? [{label: '30Y', pairs: d.series.ust30, color: '--s3'}] : [])], {unit: '%'});
   lineChart(el.querySelector('#c-curve'), [{label: '2s10s', pairs: d.series.curve_2s10s_bp, color: '--s1'}], {dec: 0, unit: 'bp'});
   if (d.series.cpi_yoy) lineChart(el.querySelector('#c-cpi'), [{label: 'CPI YoY', pairs: d.series.cpi_yoy, color: '--s1'}], {unit: '%'});
 }
@@ -227,6 +228,8 @@ function drawUK(el) {
   const onsT = Object.entries(ons).map(([k, o]) => tile(k.replace(/_/g, ' '), '£' + fmt(o.latest / 1000, 1) + 'bn', o.as_of.slice(0, 7))).join('');
   const dmoT = [['Remit £bn', dmo.remit_gbp_bn], ['Gilts in issue £bn', dmo.gilts_in_issue_gbp_bn]].filter(x => x[1] != null).map(([k, v]) => tile('DMO ' + k, fmt(v, 0))).join('');
   const curve = d.curve || {};
+  const has30 = Object.values(curve).some(c => c['30y'] != null);
+  const tenors = has30 ? ['5y', '10y', '20y', '30y'] : ['5y', '10y', '20y'];
   el.innerHTML = `<div class="tiles">${tile('Gilt 10Y par yield', fmt(first(L.gilt10)) + '%', asOf(L.gilt10))}${onsT}${dmoT}</div>
     ${rateBox('BoE Bank Rate', d.boe)}
     <div class="charts">${chartBox('Gilt yield curve (par yields, %)', 'c-curve')}${chartBox('10Y gilt par yield (%)', 'c-g10')}${chartBox('Bank Rate (%), decisions only', 'c-br')}
@@ -234,7 +237,7 @@ function drawUK(el) {
     ${dmo.remit_gbp_bn == null ? '<div class="warn">DMO remit / gilts in issue: fill in data/dmo_manual.json.</div>' : ''}${warnHtml(d)}`;
   const cols = ['--s1', '--s2', '--s3'];
   charts.push(new Chart(el.querySelector('#c-curve'), { type: 'line', plugins: [crosshair],
-    data: { labels: ['5y', '10y', '20y'], datasets: Object.entries(curve).map(([k, c], i) => ({ label: `${k} (${c.date})`, data: [c['5y'], c['10y'], c['20y']],
+    data: { labels: tenors, datasets: Object.entries(curve).map(([k, c], i) => ({ label: `${k} (${c.date})`, data: tenors.map(t => c[t]),
       borderColor: css(cols[i]), backgroundColor: css(cols[i]), borderWidth: 2, pointRadius: 3 })) },
     options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
       scales: { x: { grid: { display: false }, ticks: { color: css('--text-3'), font: {size: 10} } }, y: { grace: '5%', grid: { color: css('--grid') }, border: { display: false }, ticks: { color: css('--text-3'), font: {size: 10}, callback: v => fmt(v) } } },
