@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Desk</title>
+<!--CHARTJS--><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f4f4f2; --surface: #fcfcfb; --border: #e3e2dd;
+    --text: #0b0b0b; --text-2: #52514e; --text-3: #85847e; --grid: #ebeae6;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
+    --good: #0f7b4b; --bad: #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #111110; --surface: #1a1a19; --border: #2c2c2a;
+      --text: #ffffff; --text-2: #c3c2b7; --text-3: #8f8e85; --grid: #2a2a28;
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+      --good: #4cc38a; --bad: #f2867f;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #111110; --surface: #1a1a19; --border: #2c2c2a;
+    --text: #ffffff; --text-2: #c3c2b7; --text-3: #8f8e85; --grid: #2a2a28;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+    --good: #4cc38a; --bad: #f2867f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 20px 16px 48px; }
+  header { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  h1 { margin: 0; font-size: 22px; letter-spacing: .02em; }
+  .sub { color: var(--text-2); font-size: 12px; }
+  .streak { display: flex; align-items: baseline; gap: 8px; background: var(--surface); border: 1px solid var(--border);
+            border-radius: 12px; padding: 8px 16px; }
+  .streak b { font-size: 34px; font-variant-numeric: tabular-nums; line-height: 1; }
+  .streak span { color: var(--text-2); font-size: 12px; }
+  .banner { background: var(--surface); border: 1px solid var(--s2); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 13px; }
+  .toolbar { display: flex; gap: 6px; margin: 0 0 12px; align-items: center; flex-wrap: wrap; }
+  .toolbar .lbl { color: var(--text-2); font-size: 12px; margin-right: 4px; }
+  button { font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border);
+           background: var(--surface); color: var(--text-2); cursor: pointer; }
+  button[aria-pressed="true"] { color: var(--text); border-color: var(--text-3); font-weight: 600; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  .card h2 { margin: 0 0 2px; font-size: 16px; }
+  .tp { color: var(--text-2); margin: 0 0 12px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .tile { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+  .tile .v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .tile .k { font-size: 11px; color: var(--text-2); }
+  .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+  .chart h3 { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: var(--text-2); }
+  .chart .box { position: relative; height: 210px; }
+  .warn { color: var(--text-3); font-size: 11px; margin-top: 8px; }
+  .err { color: var(--bad); font-size: 12px; margin: 0 0 8px; }
+  .pos-table { width: 100%; border-collapse: collapse; }
+  .pos-table th, .pos-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  .pos-table th { color: var(--text-2); font-weight: 500; font-size: 12px; }
+  .pos-table td.n, .pos-table th.n { text-align: right; }
+  .up { color: var(--good); } .down { color: var(--bad); }
+  .rate { border: 1px dashed var(--border); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; display: flex; gap: 20px; flex-wrap: wrap; }
+  .rate div { min-width: 120px; } .rate .v { font-size: 18px; font-weight: 600; } .rate .k { font-size: 11px; color: var(--text-2); }
+  .empty { color: var(--text-3); font-size: 12px; padding: 24px 0; }
+  details.tv summary { cursor: pointer; color: var(--text-2); font-size: 11px; margin-top: 4px; }
+  details.tv table { font-size: 11px; color: var(--text-2); border-collapse: collapse; }
+  details.tv td, details.tv th { padding: 1px 8px 1px 0; text-align: left; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>The Desk</h1>
+      <div class="sub" id="updated">Loading…</div>
+    </div>
+    <div class="streak" title="Consecutive business days with a fully successful data update">
+      <b id="streak">–</b><span>day update streak<br><span id="best"></span></span>
+    </div>
+  </header>
+  <div id="banner"></div>
+  <div class="toolbar" id="range"><span class="lbl">Range</span></div>
+
+  <section class="card" id="positions"></section>
+  <div id="panels"></div>
+</div>
+
+<script>
+const DIR = new URLSearchParams(location.search).get('data') || 'data';
+const RANGES = [['3M', 63], ['6M', 126], ['1Y', 252], ['All', 1e9]];
+let rangeN = 252;
+const D = {};           // loaded json
+const charts = [];      // live Chart instances
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const $ = (h) => { const t = document.createElement('template'); t.innerHTML = h.trim(); return t.content.firstChild; };
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt = (v, d = 2) => v == null ? '–' : Number(v).toLocaleString('en-GB', {minimumFractionDigits: d, maximumFractionDigits: d});
+const first = x => Array.isArray(x) ? x[0] : x;
+const asOf = x => Array.isArray(x) ? x[1] : '';
+
+async function load(name) {
+  if (window.__DESK_DATA__) return window.__DESK_DATA__[name] ?? null;   // single-file build (works from file://)
+  try { const r = await fetch(`${DIR}/${name}.json`, {cache: 'no-store'}); if (!r.ok) throw new Error(r.status); return await r.json(); }
+  catch (e) { return null; }
+}
+
+/* ---------- chart helpers ---------- */
+const crosshair = { id: 'crosshair', afterDatasetsDraw(c) {
+  const a = c.tooltip?.getActiveElements?.(); if (!a || !a.length) return;
+  const x = a[0].element.x, {top, bottom} = c.chartArea, g = c.ctx;
+  g.save(); g.strokeStyle = css('--text-3'); g.lineWidth = 1; g.setLineDash([3, 3]);
+  g.beginPath(); g.moveTo(x, top); g.lineTo(x, bottom); g.stroke(); g.restore();
+}};
+
+function cut(pairs) { return pairs.slice(-Math.min(rangeN, pairs.length)); }
+
+/* datasets: [{label, pairs:[[date,val]], color, step?}] ; time-series line chart, single y axis */
+function lineChart(canvas, datasets, {dec = 2, unit = '', zero = false, sets} = {}) {
+  const cutd = datasets.map(d => ({...d, pairs: cut(d.pairs)}));
+  const labels = [...new Set(cutd.flatMap(d => d.pairs.map(p => p[0])))].sort();
+  const ds = cutd.map(d => { const m = new Map(d.pairs);
+    return { label: d.label, data: labels.map(l => m.has(l) ? m.get(l) : null), borderColor: css(d.color), backgroundColor: css(d.color),
+             borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, pointHoverBorderWidth: 2, pointHoverBorderColor: css('--surface'),
+             tension: 0, spanGaps: true, stepped: d.step ? 'before' : false }; });
+  const ch = new Chart(canvas, { type: 'line', data: { labels, datasets: ds }, plugins: [crosshair],
+    options: { responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: { x: { ticks: { maxTicksLimit: 6, maxRotation: 0, color: css('--text-3'), font: {size: 10} }, grid: { display: false }, border: { color: css('--grid') } },
+                y: { beginAtZero: zero, grace: '5%', ticks: { color: css('--text-3'), font: {size: 10}, callback: v => fmt(v, dec) }, grid: { color: css('--grid') }, border: { display: false } } },
+      plugins: { legend: { display: ds.length > 1, position: 'bottom', labels: { color: css('--text-2'), boxWidth: 10, boxHeight: 3, font: {size: 11} } },
+        tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${fmt(c.parsed.y, dec)}${unit}` } } } } });
+  charts.push(ch); return ch;
+}
+
+function chartBox(title, id, tableHtml = '') {
+  return `<div class="chart"><h3>${esc(title)}</h3><div class="box"><canvas id="${id}" role="img" aria-label="${esc(title)}"></canvas></div>${tableHtml}</div>`;
+}
+function tableView(datasets, dec = 2) {   // accessible table alternative: last 8 obs
+  const rows = datasets[0].pairs.slice(-8).map((p, i) => `<tr><td>${p[0]}</td>${datasets.map(d => `<td>${fmt(d.pairs.slice(-8)[i]?.[1], dec)}</td>`).join('')}</tr>`).join('');
+  return `<details class="tv"><summary>Table view</summary><table><tr><th>Date</th>${datasets.map(d => `<th>${esc(d.label)}</th>`).join('')}</tr>${rows}</table></details>`;
+}
+const tile = (k, v, sub = '') => `<div class="tile"><div class="v">${v}</div><div class="k">${esc(k)}${sub ? ' · ' + esc(sub) : ''}</div></div>`;
+
+function rateBox(name, s) {
+  if (!s) return '';
+  const chg = s.days_since_change == null ? (s.note || 'no change in window')
+    : `${s.days_since_change} days` ;
+  const sub = s.last_change ? `${s.last_change_bp > 0 ? '+' : ''}${s.last_change_bp}bp on ${s.last_change}` : '';
+  const nxt = s.next_meeting ? `${s.next_meeting} (in ${s.days_to_meeting}d)` : 'not set (meetings.json)';
+  return `<div class="rate"><div><div class="v">${fmt(s.rate)}%</div><div class="k">${esc(name)} · as of ${s.as_of}</div></div>
+    <div><div class="v">${chg}</div><div class="k">since last change ${esc(sub)}</div></div>
+    <div><div class="v">${esc(nxt)}</div><div class="k">next scheduled meeting</div></div></div>`;
+}
+
+function panelShell(key, title, blurb) {
+  const L = D.log, pl = L?.panels?.[key];
+  const errs = [];
+  if (pl && !pl.ok) errs.push(`Last update failed: ${pl.error} (showing previous data${pl.updated ? ' from ' + pl.updated.slice(0, 10) : ''}).`);
+  const el = $(`<section class="card" id="p-${key}"><h2>${esc(title)}</h2>
+    <p class="tp">${esc(L?.talking_points?.[key] || blurb)}</p>${errs.map(e => `<p class="err">${esc(e)}</p>`).join('')}<div class="body"></div></section>`);
+  return el;
+}
+const warnHtml = (d) => d?.warnings?.length ? `<div class="warn">Notes: ${d.warnings.map(esc).join(' · ')}</div>` : '';
+
+/* ---------- panels ---------- */
+function drawKorea(el) {
+  const d = D.korea_fx; if (!d) return missing(el);
+  const L = d.latest;
+  el.innerHTML = `<div class="tiles">${tile('USD/KRW', fmt(L.usdkrw, 1), L.as_of)}</div>
+    ${d.bok ? rateBox('BoK base rate', d.bok) : ''}
+    <div class="charts">${chartBox('USD/KRW spot', 'c-usdkrw', tableView([{label: 'USD/KRW', pairs: cut(d.series.usdkrw)}], 1))}
+    ${d.series.bok_rate ? chartBox('BoK base rate (%), decisions only', 'c-bok') : ''}</div>${warnHtml(d)}`;
+  const tg = Object.values(D.positions || {}).find(p => p.detail?.series === 'usdkrw' && p.detail?.target);
+  const ch = lineChart(el.querySelector('#c-usdkrw'), [{label: 'USD/KRW', pairs: d.series.usdkrw, color: '--s1'}], {dec: 1});
+  if (tg) addRefLines(ch, [['Entry', tg.detail.entry_level], ['Target', tg.detail.target]]);
+  if (d.series.bok_rate) lineChart(el.querySelector('#c-bok'), [{label: 'BoK base rate', pairs: d.series.bok_rate, color: '--s1', step: true}], {unit: '%'});
+}
+function addRefLines(ch, lines) {   // dashed horizontal reference lines (entry / target)
+  ch.config.plugins.push({ id: 'refs' + Math.random(), afterDatasetsDraw(c) {
+    const g = c.ctx, {left, right} = c.chartArea;
+    lines.forEach(([t, v]) => { const y = c.scales.y.getPixelForValue(v); if (y < c.chartArea.top || y > c.chartArea.bottom) return;
+      g.save(); g.strokeStyle = css('--text-3'); g.setLineDash([5, 4]); g.beginPath(); g.moveTo(left, y); g.lineTo(right, y); g.stroke();
+      g.setLineDash([]); g.fillStyle = css('--text-2'); g.font = '10px system-ui'; g.fillText(`${t} ${fmt(v, 0)}`, left + 4, y - 3); g.restore(); }); } });
+  ch.update('none');
+}
+function drawUS(el) {
+  const d = D.us_rates; if (!d) return missing(el);
+  const L = d.latest;
+  el.innerHTML = `<div class="tiles">${tile('UST 2Y', fmt(first(L.ust2)) + '%', asOf(L.ust2))}${tile('UST 10Y', fmt(first(L.ust10)) + '%', asOf(L.ust10))}
+    ${tile('2s10s', fmt(L.curve_2s10s_bp, 0) + 'bp')}${L.cpi_yoy ? tile('CPI YoY', fmt(first(L.cpi_yoy)) + '%', asOf(L.cpi_yoy)) : ''}</div>
+    ${rateBox('Fed funds (effective)', d.fed)}
+    <div class="charts">${chartBox('UST 2Y vs 10Y yield (%)', 'c-ust')}${chartBox('2s10s curve slope (bp)', 'c-curve')}
+    ${d.series.cpi_yoy ? chartBox('CPI-U, year-on-year (%)', 'c-cpi') : ''}</div>${warnHtml(d)}`;
+  lineChart(el.querySelector('#c-ust'), [{label: '2Y', pairs: d.series.ust2, color: '--s1'}, {label: '10Y', pairs: d.series.ust10, color: '--s2'}], {unit: '%'});
+  lineChart(el.querySelector('#c-curve'), [{label: '2s10s', pairs: d.series.curve_2s10s_bp, color: '--s1'}], {dec: 0, unit: 'bp'});
+  if (d.series.cpi_yoy) lineChart(el.querySelector('#c-cpi'), [{label: 'CPI YoY', pairs: d.series.cpi_yoy, color: '--s1'}], {unit: '%'});
+}
+function drawGold(el) {
+  const d = D.gold_real_yields; if (!d) return missing(el);
+  const L = d.latest, w = d.wgc, q = w?.quarters || [];
+  el.innerHTML = `<div class="tiles">${tile('Gold (XAU/USD)', '$' + fmt(first(L.gold), 0), asOf(L.gold))}${tile('10Y TIPS real yield', fmt(first(L.real10)) + '%', asOf(L.real10))}</div>
+    <div class="charts">${chartBox('Gold spot (USD/oz)', 'c-gold')}${chartBox('10Y TIPS real yield (%)', 'c-real')}
+    <div class="chart"><h3>Central bank net gold purchases (tonnes, WGC, quarterly)</h3>${q.length ? '<div class="box"><canvas id="c-wgc"></canvas></div>'
+      : '<div class="empty">No data yet. Add quarters to data/wgc_manual.json when Gold Demand Trends is published.</div>'}</div></div>${warnHtml(d)}`;
+  lineChart(el.querySelector('#c-gold'), [{label: 'Gold', pairs: d.series.gold, color: '--s1'}], {dec: 0});
+  lineChart(el.querySelector('#c-real'), [{label: 'Real yield', pairs: d.series.real10, color: '--s2'}], {unit: '%'});
+  if (q.length) charts.push(new Chart(el.querySelector('#c-wgc'), { type: 'bar', data: { labels: q.map(x => x.quarter), datasets: [{ label: 'Tonnes', data: q.map(x => x.net_purchases_tonnes), backgroundColor: css('--s1'), borderRadius: 3 }] },
+    options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false } },
+      scales: { x: { grid: { display: false }, ticks: { color: css('--text-3'), font: {size: 10} } }, y: { grid: { color: css('--grid') }, border: { display: false }, ticks: { color: css('--text-3'), font: {size: 10} } } } } }));
+}
+function drawFrontier(el) {
+  const d = D.frontier; if (!d) return missing(el);
+  const L = d.latest;
+  el.innerHTML = `<div class="tiles">${tile(d.ticker + ' (proxy)', fmt(first(L.etf)), asOf(L.etf))}${tile('60d correlation vs UST10Y', L.corr60 == null ? '–' : fmt(L.corr60))}</div>
+    <div class="charts">${chartBox(d.ticker + ' close', 'c-etf')}${chartBox('Rolling 60-day correlation with UST 10Y', 'c-corr')}</div>
+    <div class="warn">${esc(d.corr_method)}. A frontier-bond ETF proxy: no liquid pure-frontier bond ETF exists.</div>${warnHtml(d)}`;
+  lineChart(el.querySelector('#c-etf'), [{label: d.ticker, pairs: d.series.etf, color: '--s1'}]);
+  lineChart(el.querySelector('#c-corr'), [{label: 'Correlation', pairs: d.series.corr60, color: '--s2'}], {});
+}
+function drawUK(el) {
+  const d = D.uk_gilts; if (!d) return missing(el);
+  const L = d.latest, ons = d.ons || {}, dmo = d.dmo || {};
+  const onsT = Object.entries(ons).map(([k, o]) => tile(k.replace(/_/g, ' '), '£' + fmt(o.latest / 1000, 1) + 'bn', o.as_of.slice(0, 7))).join('');
+  const dmoT = [['Remit £bn', dmo.remit_gbp_bn], ['Gilts in issue £bn', dmo.gilts_in_issue_gbp_bn]].filter(x => x[1] != null).map(([k, v]) => tile('DMO ' + k, fmt(v, 0))).join('');
+  const curve = d.curve || {};
+  el.innerHTML = `<div class="tiles">${tile('Gilt 10Y par yield', fmt(first(L.gilt10)) + '%', asOf(L.gilt10))}${onsT}${dmoT}</div>
+    ${rateBox('BoE Bank Rate', d.boe)}
+    <div class="charts">${chartBox('Gilt yield curve (par yields, %)', 'c-curve')}${chartBox('10Y gilt par yield (%)', 'c-g10')}${chartBox('Bank Rate (%), decisions only', 'c-br')}
+    ${ons.psnb_ex_banks ? chartBox('PSNB ex banks (£m, monthly)', 'c-psnb') : ''}</div>
+    ${dmo.remit_gbp_bn == null ? '<div class="warn">DMO remit / gilts in issue: fill in data/dmo_manual.json.</div>' : ''}${warnHtml(d)}`;
+  const cols = ['--s1', '--s2', '--s3'];
+  charts.push(new Chart(el.querySelector('#c-curve'), { type: 'line', plugins: [crosshair],
+    data: { labels: ['5y', '10y', '20y'], datasets: Object.entries(curve).map(([k, c], i) => ({ label: `${k} (${c.date})`, data: [c['5y'], c['10y'], c['20y']],
+      borderColor: css(cols[i]), backgroundColor: css(cols[i]), borderWidth: 2, pointRadius: 3 })) },
+    options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
+      scales: { x: { grid: { display: false }, ticks: { color: css('--text-3'), font: {size: 10} } }, y: { grace: '5%', grid: { color: css('--grid') }, border: { display: false }, ticks: { color: css('--text-3'), font: {size: 10}, callback: v => fmt(v) } } },
+      plugins: { legend: { position: 'bottom', labels: { color: css('--text-2'), boxWidth: 10, boxHeight: 3, font: {size: 11} } }, tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${fmt(c.parsed.y)}%` } } } } }));
+  lineChart(el.querySelector('#c-g10'), [{label: '10Y gilt', pairs: d.series.gilt10, color: '--s1'}], {unit: '%'});
+  lineChart(el.querySelector('#c-br'), [{label: 'Bank Rate', pairs: d.series.bank_rate, color: '--s1', step: true}], {unit: '%'});
+  if (ons.psnb_ex_banks) { const s = ons.psnb_ex_banks.series;
+    charts.push(new Chart(el.querySelector('#c-psnb'), { type: 'bar', data: { labels: s.map(p => p[0].slice(0, 7)), datasets: [{ label: 'PSNB ex', data: s.map(p => p[1]), backgroundColor: css('--s1'), borderRadius: 3 }] },
+      options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false } },
+        scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 6, color: css('--text-3'), font: {size: 10} } }, y: { grid: { color: css('--grid') }, border: { display: false }, ticks: { color: css('--text-3'), font: {size: 10} } } } } })); }
+}
+function missing(el) { el.innerHTML = '<div class="empty">No data yet. Run the update workflow.</div>'; }
+
+/* ---------- positions ---------- */
+function drawPositions() {
+  const sec = document.getElementById('positions'), P = D.log?.positions || {};
+  const rows = Object.entries(P).map(([k, p]) => {
+    const dt = p.detail || {};
+    if (p.pnl_pct == null) return `<tr><td>${esc(k)}</td><td colspan="6">${esc(dt.view || p.note || '')}${dt.entry_date ? ' <span class="sub">(since ' + esc(dt.entry_date) + ')</span>' : ''}</td></tr>`;
+    const cls = p.pnl_pct >= 0 ? 'up' : 'down', sg = v => (v >= 0 ? '+' : '') + v;
+    return `<tr><td>${esc(k)}</td><td>${esc(dt.direction)}</td><td class="n">${fmt(dt.entry_level, 0)}</td><td class="n">${fmt(p.current, 1)}</td>
+      <td class="n">${dt.target ? fmt(dt.target, 0) : '–'}</td><td class="n">${p.progress_to_target_pct != null ? fmt(p.progress_to_target_pct, 0) + '%' : '–'}</td>
+      <td class="n ${cls}">${sg(fmt(p.pnl_pct))}%${p.pnl_usd != null ? ' / ' + (p.pnl_usd >= 0 ? '+' : '−') + '$' + fmt(Math.abs(p.pnl_usd), 0) : ''}</td></tr>`; }).join('');
+  sec.innerHTML = `<h2>Paper trades</h2><p class="tp">Hypothetical P&amp;L against the latest level. Edit <code>positions.json</code> to change theses.</p>
+    ${rows ? `<div style="overflow-x:auto"><table class="pos-table"><tr><th>Position</th><th>Dir</th><th class="n">Entry</th><th class="n">Now</th><th class="n">Target</th><th class="n">To target</th><th class="n">P&amp;L</th></tr>${rows}</table></div>` : '<div class="empty">No positions.</div>'}`;
+}
+
+/* ---------- render ---------- */
+const PANELS = [['korea_fx', 'Korea FX', 'USD/KRW and the Bank of Korea', drawKorea], ['us_rates', 'US Rates & the Fed', '', drawUS],
+  ['gold_real_yields', 'Gold & Real Yields', '', drawGold], ['frontier', 'Frontier Markets', '', drawFrontier], ['uk_gilts', 'UK Gilts', '', drawUK]];
+
+function render() {
+  charts.splice(0).forEach(c => c.destroy());
+  const host = document.getElementById('panels'); host.innerHTML = '';
+  drawPositions();
+  for (const [key, title, blurb, fn] of PANELS) { const el = panelShell(key, title, blurb); host.appendChild(el); fn(el.querySelector('.body')); }
+}
+function header() {
+  const L = D.log;
+  document.getElementById('streak').textContent = L ? L.streak : '–';
+  document.getElementById('best').textContent = L?.best_streak ? `best ${L.best_streak}` : '';
+  document.getElementById('updated').textContent = L ? `Last run ${L.last_run.replace('T', ' ').slice(0, 16)} UTC${L.all_ok ? '' : ' · some panels failed'}` : 'No data yet';
+  if (L?.demo) document.getElementById('banner').innerHTML = '<div class="banner"><b>Demo mode:</b> synthetic data for layout preview only.</div>';
+}
+(async function init() {
+  const rb = document.getElementById('range');
+  RANGES.forEach(([lbl, n]) => { const b = $(`<button aria-pressed="${n === rangeN}">${lbl}</button>`);
+    b.onclick = () => { rangeN = n; rb.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); render(); }; rb.appendChild(b); });
+  const names = ['korea_fx', 'us_rates', 'gold_real_yields', 'frontier', 'uk_gilts', 'log'];
+  const res = await Promise.all(names.map(load)); names.forEach((n, i) => D[n] = res[i]);
+  D.positions = D.log?.positions; header(); render();
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+})();
+</script>
+</body>
+</html>

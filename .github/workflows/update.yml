@@ -1,0 +1,40 @@
+name: Update Desk Dashboard
+
+on:
+  schedule:
+    - cron: '0 6 * * 1-5'   # 6am UTC, weekdays
+  workflow_dispatch:         # manual trigger from the GitHub UI
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Fetch fresh data
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}   # optional
+          BOK_API_KEY: ${{ secrets.BOK_API_KEY }}
+          STOOQ_API_KEY: ${{ secrets.STOOQ_API_KEY }}   # optional
+        run: python fetch_data.py && python build_single.py
+
+      - name: Commit updated data
+        if: always()   # still commit whatever panels did update, even if one failed
+        run: |
+          git config user.name "desk-bot"
+          git config user.email "actions@github.com"
+          git add data/ the-desk.html
+          git diff --staged --quiet || git commit -m "Daily data refresh $(date +%Y-%m-%d)"
+          git pull --rebase
+          git push

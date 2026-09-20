@@ -1,0 +1,4 @@
+{
+  "usdkrw_ndf": {"entry_date": "2026-08-01", "direction": "short", "entry_level": 1450, "target": 1420, "series": "usdkrw", "notional": 1000000},
+  "duration_call": {"entry_date": "2026-08-01", "view": "2.19yr average duration"}
+}

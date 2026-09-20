@@ -1,0 +1,8 @@
+{
+  "_note": "Update by hand when the DMO remit changes (dmo.gov.uk). Leave nulls until filled.",
+  "updated": null,
+  "remit_gbp_bn": null,
+  "remit_fiscal_year": null,
+  "gilts_in_issue_gbp_bn": null,
+  "source": "UK Debt Management Office"
+}

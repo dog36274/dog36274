@@ -1,0 +1,6 @@
+{
+  "_note": "Hand-maintained. VERIFY against the official calendars (federalreserve.gov FOMC calendar, bankofengland.co.uk MPC dates, bok.or.kr MPC schedule) - these were entered from memory.",
+  "fed": ["2026-10-28", "2026-12-09"],
+  "boe": ["2026-11-05", "2026-12-17"],
+  "bok": ["2026-10-22", "2026-11-26"]
+}
