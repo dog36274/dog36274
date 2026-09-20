@@ -1,35 +1,36 @@
 {
- "last_run": "2026-09-20T18:03:27+00:00",
+ "last_run": "2026-09-20T18:14:20+00:00",
  "demo": false,
  "all_ok": true,
  "panels": {
   "korea_fx": {
    "ok": true,
-   "updated": "2026-09-20T18:03:27+00:00",
+   "updated": "2026-09-20T18:14:20+00:00",
    "warnings": [
     "BoK base rate: BOK_API_KEY not set"
    ]
   },
   "us_rates": {
    "ok": true,
-   "updated": "2026-09-20T18:03:27+00:00",
+   "updated": "2026-09-20T18:14:20+00:00",
    "warnings": []
   },
   "gold_real_yields": {
    "ok": true,
-   "updated": "2026-09-20T18:03:27+00:00",
+   "updated": "2026-09-20T18:14:20+00:00",
    "warnings": []
   },
   "frontier": {
    "ok": true,
-   "updated": "2026-09-20T18:03:27+00:00",
+   "updated": "2026-09-20T18:14:20+00:00",
    "warnings": []
   },
   "uk_gilts": {
    "ok": true,
-   "updated": "2026-09-20T18:03:27+00:00",
+   "updated": "2026-09-20T18:14:20+00:00",
    "warnings": [
-    "DMO gilts in issue: unrecognised export format (status 200, first bytes b'\\r\\n\\r\\n<!DO', body ' <!DOCTYPE html> <html lang=\"en\"> <head> <meta charset=\"UTF-8\"> <title>Gilts in Issue</title> <meta name=\"viewport\" content=\"width=device-width\" /> <link rel=\"apple-touch-icon-precomposed\" sizes=\"57x57\" href=\"/dist/favicons/dmo/apple-touch-icon-57x57.png\" /> <link rel=\"apple-touch-icon-precomposed\" ')",
+    "BoE 30Y gilt: No such keys(s): 'io.excel.zip.reader'",
+    "DMO gilts in issue: unrecognised export format (status 200, first bytes b'<head><t', body '<head><title>ShieldSquare Block</title><script type=\"text/javascript\"> window.SSJSInternal = 18155; var __uzdbm_1 = \"c6d807c5-ec06-4e15-a7ea-84034feeb8b0\"; var __uzdbm_2 = \"OWI1ZmQ5YmUtYmhiei00MjQxLWIxYTQtN2UyZGQ3NmUwZGIyJDE3Mi4xODQuMjExLjcx\"; (function(w, d, e, u, c, g, a, b){ w[\"SSJSConnectorObj\"]'); scripts=[]; api-path candidates=[]",
     "ONS central_govt_interest: CDID not configured",
     "ONS net_social_benefits: CDID not configured"
    ]
@@ -79,7 +80,8 @@
    "gold": 4424.89990234375,
    "real10": 2.61,
    "emb": 93.37999725341797,
-   "corr60": -0.8547381854896253
+   "corr60": -0.8547381854896253,
+   "ust30": 5.29
   }
  },
  "streak": 1,
