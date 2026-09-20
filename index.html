@@ -170,14 +170,27 @@ const warnHtml = (d) => d?.warnings?.length ? `<div class="warn">Notes: ${d.warn
 function drawKorea(el) {
   const d = D.korea_fx; if (!d) return missing(el);
   const L = d.latest;
-  el.innerHTML = `<div class="tiles">${tile('USD/KRW', fmt(L.usdkrw, 1), L.as_of)}</div>
+  const kospiT = L.kospi_foreign_net ? tile('KOSPI foreign net buy', (first(L.kospi_foreign_net) >= 0 ? '+' : '') + fmt(first(L.kospi_foreign_net), 0), asOf(L.kospi_foreign_net)) : '';
+  const hfT = L.hf_downloads ? tile('Korean LLM downloads (HF)', fmt(first(L.hf_downloads), 0), asOf(L.hf_downloads)) : '';
+  el.innerHTML = `<div class="tiles">${tile('USD/KRW', fmt(L.usdkrw, 1), L.as_of)}${kospiT}${hfT}</div>
     ${d.bok ? rateBox('BoK base rate', d.bok) : ''}
     <div class="charts">${chartBox('USD/KRW spot', 'c-usdkrw', tableView([{label: 'USD/KRW', pairs: cut(d.series.usdkrw)}], 1))}
-    ${d.series.bok_rate ? chartBox('BoK base rate (%), decisions only', 'c-bok') : ''}</div>${warnHtml(d)}`;
+    ${d.series.bok_rate ? chartBox('BoK base rate (%), decisions only', 'c-bok') : ''}
+    ${d.series.kospi_foreign_net ? chartBox('KOSPI foreign investor net buy/sell (daily)', 'c-kospi-foreign') : ''}
+    ${d.series.hf_downloads ? chartBox('Korean LLM downloads on Hugging Face (daily snapshot)', 'c-hf') : ''}</div>${warnHtml(d)}`;
   const tg = Object.values(D.positions || {}).find(p => p.detail?.series === 'usdkrw' && p.detail?.target);
   const ch = lineChart(el.querySelector('#c-usdkrw'), [{label: 'USD/KRW', pairs: d.series.usdkrw, color: '--s1'}], {dec: 1});
   if (tg) addRefLines(ch, [['Entry', tg.detail.entry_level], ['Target', tg.detail.target]]);
   if (d.series.bok_rate) lineChart(el.querySelector('#c-bok'), [{label: 'BoK base rate', pairs: d.series.bok_rate, color: '--s1', step: true}], {unit: '%'});
+  if (d.series.kospi_foreign_net) { const kf = cut(d.series.kospi_foreign_net);
+    charts.push(new Chart(el.querySelector('#c-kospi-foreign'), { type: 'bar',
+      data: { labels: kf.map(p => p[0]), datasets: [{ label: 'Net buy/sell', data: kf.map(p => p[1]),
+        backgroundColor: kf.map(p => css(p[1] >= 0 ? '--good' : '--bad')), borderRadius: 2 }] },
+      options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: c => ` ${c.parsed.y >= 0 ? '+' : ''}${fmt(c.parsed.y, 0)}` } } },
+        scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 6, color: css('--text-3'), font: {size: 10} } },
+                  y: { grid: { color: css('--grid') }, border: { display: false }, ticks: { color: css('--text-3'), font: {size: 10} } } } } })); }
+  if (d.series.hf_downloads) lineChart(el.querySelector('#c-hf'), [{label: 'HF downloads', pairs: d.series.hf_downloads, color: '--s3'}], {dec: 0});
 }
 function addRefLines(ch, lines) {   // dashed horizontal reference lines (entry / target)
   ch.config.plugins.push({ id: 'refs' + Math.random(), afterDatasetsDraw(c) {

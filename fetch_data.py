@@ -560,6 +560,81 @@ def wgc_data(p):
     return {**manual, "quarters": quarters, "scraped_count": len(scraped)}
 
 
+HF_ORGS = ("LGAI-EXAONE", "upstage", "kakaobrain")   # major Korean-developed-LLM orgs on HF
+
+
+def hf_org_downloads(org):
+    """Sum of `downloads` (Hugging Face's own rolling ~30-day count) across every
+    model a Hugging Face org/user publishes. No key needed - api.huggingface.co
+    (actually huggingface.co/api) is a public, unauthenticated read API."""
+    if DEMO:
+        rng = np.random.default_rng(zlib.crc32(org.encode()) % (2**31))
+        return int(30_000 + rng.integers(0, 40_000))
+    models = http_get("https://huggingface.co/api/models", params={"author": org, "limit": 200}).json()
+    if not isinstance(models, list):
+        raise RuntimeError(f"HF api/models?author={org}: unexpected response {str(models)[:200]!r}")
+    return sum(m.get("downloads", 0) or 0 for m in models)
+
+
+def hf_llm_downloads_snapshot():
+    """Today's total HF downloads across HF_ORGS. Not DEMO-guarded itself (callers
+    check DEMO) since hf_org_downloads() already handles it per-org."""
+    total, notes = 0, []
+    for org in HF_ORGS:
+        try:
+            total += hf_org_downloads(org)
+        except Exception as e:  # noqa: BLE001
+            notes.append(f"{org}: {e}")
+    if notes:
+        raise RuntimeError("; ".join(notes))
+    return total
+
+
+def hf_downloads_series(p):
+    """Hugging Face's public API only exposes a current download snapshot, not
+    history, so - unlike every other series in this file - there's nothing to
+    backfill. This accumulates one point per calendar day into a small running
+    history file; the series starts short and grows one point per daily run."""
+    if DEMO:
+        idx = pd.bdate_range(end=TODAY, periods=60)
+        rng = np.random.default_rng(11)
+        base = sum(hf_org_downloads(o) for o in HF_ORGS)
+        vals = np.maximum(0, base + np.cumsum(rng.normal(0, max(base * 0.02, 1), len(idx))))
+        return [[d.strftime("%Y-%m-%d"), round(float(v))] for d, v in zip(idx, vals)]
+    path = ROOT / "data" / "hf_downloads_history.json"
+    hist = read_json(path, {}) or {}
+    today_val = p.optional("HF LLM downloads", hf_llm_downloads_snapshot)
+    if today_val is not None:
+        hist[TODAY.isoformat()] = today_val
+        for d in sorted(hist)[:-1825]:   # ~5y cap, generous - this grows ~1 point/day
+            del hist[d]
+        path.write_text(json.dumps(hist, indent=1))
+    return [[d, hist[d]] for d in sorted(hist)]
+
+
+def scrape_krx_foreign_net_buy():
+    """Best-effort scrape of KRX's daily foreign-investor net buying value for
+    KOSPI (data.krx.co.kr). KRX's data portal doesn't expose a simple REST
+    endpoint for this - real usage is a two-step dance (request a one-time code
+    for a specific dataset "block" via GenerateOTP, then POST that code to
+    download the actual CSV), and the exact block ID for this dataset hasn't
+    been confirmed live. Rather than guess both the block ID and its OTP
+    parameters blind, this fetches the real investor-trading-trends page first
+    and reports whatever block-id-shaped config it finds embedded in the page,
+    so the real download step can be built from confirmed values next round."""
+    if DEMO:
+        rng = np.random.default_rng(23)
+        idx = pd.bdate_range(end=TODAY, periods=700)
+        vals = rng.normal(0, 400, len(idx))   # net buy/sell oscillates around zero
+        return pd.Series(vals, index=idx)
+    page = http_get("http://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd",
+                    params={"menuId": "MDC0201020101"})
+    text = page.text
+    blds = list(dict.fromkeys(re.findall(r'bld["\']?\s*[:=]\s*["\']([^"\']+)["\']', text)))
+    raise RuntimeError(f"KRX: page fetched (status {page.status_code}, {len(text)} chars) but the "
+                       f"OTP-download flow isn't built yet; bld candidates found on the page={blds[:15]}")
+
+
 # --------------------------------- panels -----------------------------------
 def panel_korea():
     p = Panel()
@@ -572,6 +647,14 @@ def panel_korea():
     if bok is not None and len(bok):
         p.data["series"]["bok_rate"] = pairs(bok)
         p.data["bok"] = rate_status(bok, "bok")
+    krx = p.optional("KRX foreign net buy", scrape_krx_foreign_net_buy)
+    if krx is not None and len(krx):
+        p.data["series"]["kospi_foreign_net"] = pairs(krx, 1400)
+        p.data["latest"]["kospi_foreign_net"] = last(krx)
+    hf = hf_downloads_series(p)
+    if hf:
+        p.data["series"]["hf_downloads"] = hf
+        p.data["latest"]["hf_downloads"] = [hf[-1][1], hf[-1][0]]   # series pairs are [date, value]; latest.* is [value, date]
     return p
 
 
