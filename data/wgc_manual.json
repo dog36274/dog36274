@@ -1,5 +1,5 @@
 {
-  "_note": "Update by hand each quarter from the WGC Gold Demand Trends report (gold.org/goldhub/data). Tonnes, net central bank purchases.",
+  "_note": "Update by hand each quarter from the WGC Gold Demand Trends report (gold.org/goldhub/data) if the scraper can't reach it. Tonnes, by category. Example row: {\"quarter\": \"2025Q2\", \"jewellery_fabrication\": 410, \"investment\": 260, \"central_banks_and_other_institutions\": 180}",
   "source": "World Gold Council, Gold Demand Trends",
   "updated": null,
   "quarters": []

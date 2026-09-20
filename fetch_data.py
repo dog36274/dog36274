@@ -74,7 +74,7 @@ def http_get(url, params=None, headers=None, retries=3, timeout=45):
 YAHOO_SYMBOLS = {"usdkrw": "KRW=X", "xauusd": "GC=F", "emb.us": "EMB"}
 
 
-def yahoo_finance(symbol):
+def yahoo_finance(symbol, years=2):
     """Fallback when Stooq is blocked: daily close series from Yahoo Finance's public
     chart API (no key required). Only covers the symbols in YAHOO_SYMBOLS."""
     if DEMO:
@@ -83,7 +83,7 @@ def yahoo_finance(symbol):
     if not yf_symbol:
         raise RuntimeError(f"no Yahoo Finance mapping for {symbol}")
     j = http_get(f"https://query1.finance.yahoo.com/v8/finance/chart/{yf_symbol}",
-                params={"range": "2y", "interval": "1d"},
+                params={"range": f"{years}y", "interval": "1d"},
                 headers={"Accept": "application/json"}).json()
     result = (j.get("chart") or {}).get("result")
     if not result:
@@ -94,10 +94,12 @@ def yahoo_finance(symbol):
     return pd.Series(closes, index=idx, name=symbol).dropna().astype(float).sort_index()
 
 
-def stooq(symbol):
-    """Daily close series from Stooq CSV, falling back to Yahoo Finance if Stooq
-    returns a non-CSV page (Stooq sometimes demands an API key; set STOOQ_API_KEY,
-    or blocks automated requests with a JS challenge that no key can bypass)."""
+def stooq(symbol, years=2):
+    """Daily close series from Stooq CSV (which returns full available history
+    regardless of `years`), falling back to Yahoo Finance if Stooq returns a non-CSV
+    page (Stooq sometimes demands an API key; set STOOQ_API_KEY, or blocks automated
+    requests with a JS challenge that no key can bypass) - `years` only bounds that
+    fallback's range."""
     if DEMO:
         return demo_series(symbol)
     params = {"s": symbol, "i": "d"}
@@ -119,7 +121,7 @@ def stooq(symbol):
         df = pd.read_csv(StringIO(text), parse_dates=["Date"]).dropna(subset=["Close"])
         return df.set_index("Date")["Close"].astype(float).sort_index()
     try:
-        return yahoo_finance(symbol)
+        return yahoo_finance(symbol, years=years)
     except Exception as e:  # noqa: BLE001
         raise RuntimeError(f"Stooq {symbol}: {last_err}; Yahoo Finance fallback also failed: {e}")
 
@@ -487,6 +489,81 @@ def dmo_data(p):
     return merged
 
 
+WGC_CATEGORIES = ("jewellery_fabrication", "investment", "central_banks_and_other_institutions")
+
+
+def scrape_wgc_demand():
+    """Best-effort scrape of the World Gold Council's quarterly gold demand by
+    category (gold.org/goldhub) - jewellery fabrication, investment, and central
+    banks & other institutions, in tonnes. Gold Demand Trends is WGC's flagship
+    (often paywalled) report, so unlike the free government sources elsewhere in
+    this file, a public API isn't confirmed to exist. Not seen live yet: this
+    looks for the two common ways a page like this exposes its chart data (an
+    embedded JSON state blob, or a CSV/XLSX download link) rather than guessing
+    a specific API path, and on a miss reports every candidate it did find so
+    the real shape is fixable from one log without guessing blind."""
+    if DEMO:
+        rng = np.random.default_rng(7)
+        quarters = []
+        for y in range(TODAY.year - 4, TODAY.year + 1):
+            for q in range(1, 5):
+                if (y, q) > (TODAY.year, (TODAY.month - 1) // 3 + 1):
+                    continue
+                quarters.append({"quarter": f"{y}Q{q}",
+                                 "jewellery_fabrication": round(max(150, 480 + rng.normal(0, 60)), 0),
+                                 "investment": round(max(-100, 260 + rng.normal(0, 120)), 0),
+                                 "central_banks_and_other_institutions": round(max(0, 190 + rng.normal(0, 90)), 0)})
+        return quarters
+    r = http_get("https://www.gold.org/goldhub/data/gold-demand-by-category")
+    text = r.text
+    # 1) an embedded JSON state blob (Next.js/Nuxt/similar SPA pattern)
+    blobs = re.findall(r'<script[^>]+id="__NEXT_DATA__"[^>]*>(.*?)</script>', text, re.S)
+    blobs += re.findall(r'window\.__\w*STATE\w*__\s*=\s*(\{.*?\});', text, re.S)
+    for blob in blobs:
+        try:
+            data = json.loads(blob)
+        except Exception:  # noqa: BLE001
+            continue
+        dumped = json.dumps(data)
+        if "jewellery" in dumped.lower() or "fabrication" in dumped.lower():
+            # Right blob, but the key path through it isn't mapped yet - report its
+            # shape rather than guess a path that could KeyError or, worse, silently
+            # pull the wrong numbers.
+            raise RuntimeError(f"WGC: found a data blob mentioning jewellery/fabrication "
+                               f"but haven't mapped its structure yet; top-level keys="
+                               f"{list(data.keys()) if isinstance(data, dict) else type(data)}; "
+                               f"snippet={dumped[:800]!r}")
+    # 2) a CSV/XLSX/JSON download link
+    dl_links = re.findall(r'href="([^"]+\.(?:csv|xlsx?|json))"', text, re.I)
+    for link in dl_links[:5]:
+        dl_url = link if link.startswith("http") else f"https://www.gold.org{link}"
+        try:
+            resp = http_get(dl_url)
+        except Exception:  # noqa: BLE001
+            continue
+        head = resp.content[:200]
+        if b"jewellery" in head.lower() or b"fabrication" in head.lower() or head[:4] == b"PK\x03\x04":
+            raise RuntimeError(f"WGC: download link {dl_url} looks promising (first bytes "
+                               f"{head[:20]!r}) but its layout isn't mapped yet")
+    snippet = re.sub(r"\s+", " ", text)[:400]
+    api_srcs = [s for s in re.findall(r'<script[^>]+src="([^"]+)"', text) if re.search(r"api|data|chart", s, re.I)]
+    raise RuntimeError(f"WGC demand-by-category (status {r.status_code}): no usable data blob "
+                       f"or download link found; download-link candidates={dl_links[:10]}; "
+                       f"possible data scripts={api_srcs[:10]}; body {snippet!r}")
+
+
+def wgc_data(p):
+    """WGC demand-by-category quarters: scraped values override/extend the hand-edited
+    manual file, keyed by quarter (e.g. '2025Q2')."""
+    manual = read_json(ROOT / "data" / "wgc_manual.json", {}) or {}
+    by_quarter = {q["quarter"]: q for q in manual.get("quarters", []) if "quarter" in q}
+    scraped = p.optional("WGC demand", scrape_wgc_demand) or []
+    for q in scraped:
+        by_quarter[q["quarter"]] = q
+    quarters = [by_quarter[k] for k in sorted(by_quarter)]
+    return {**manual, "quarters": quarters, "scraped_count": len(scraped)}
+
+
 # --------------------------------- panels -----------------------------------
 def panel_korea():
     p = Panel()
@@ -529,15 +606,16 @@ def panel_us():
 
 def panel_gold():
     p = Panel()
-    gold = stooq("xauusd")
+    # Fetched at 5y so the same series covers both the 2y (KEEP_POINTS-truncated) gold
+    # vs real-yield chart and the standalone 5y gold price chart below - one fetch,
+    # not two (Stooq itself already returns full history; this only widens the Yahoo
+    # fallback, which is what's actually serving this series right now).
+    gold = stooq("xauusd", years=5)
     real = fred("DFII10")
     p.snap.update(gold=last(gold)[0], real10=last(real)[0])
     p.data = {"latest": {"gold": last(gold), "real10": last(real)},
-              "series": {"gold": pairs(gold), "real10": pairs(real)}}
-    wgc = read_json(ROOT / "data" / "wgc_manual.json")
-    if wgc is None:
-        p.warnings.append("wgc_manual.json missing")
-    p.data["wgc"] = wgc
+              "series": {"gold": pairs(gold), "real10": pairs(real), "gold_5y": pairs(gold, 1400)}}
+    p.data["wgc"] = wgc_data(p)
     return p
 
 

@@ -240,6 +240,35 @@ function drawGoldRealChart(canvas, d) {
         tooltip: { callbacks: { label: c => c.dataset.yAxisID === 'y' ? ` Gold: $${fmt(c.parsed.y, 0)}` : ` Real yield: ${fmt(c.parsed.y, 2)}%` } } } } });
   charts.push(goldChart);
 }
+const WGC_SERIES = [
+  ['jewellery_fabrication', 'Jewellery fabrication', '--s1'],
+  ['investment', 'Investment', '--s2'],
+  ['central_banks_and_other_institutions', 'Central banks & other institutions', '--s3'],
+];
+function drawGold5yChart(canvas, pairs) {
+  const ch = new Chart(canvas, { type: 'line', plugins: [crosshair],
+    data: { labels: pairs.map(p => p[0]), datasets: [{ label: 'Gold (USD/oz)', data: pairs.map(p => p[1]),
+      borderColor: css('--s1'), backgroundColor: css('--s1'), borderWidth: 2, pointRadius: 0, pointHoverRadius: 4,
+      pointHoverBorderWidth: 2, pointHoverBorderColor: css('--surface'), tension: 0, spanGaps: true }] },
+    options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
+      scales: { x: { ticks: { maxTicksLimit: 6, maxRotation: 0, color: css('--text-3'), font: {size: 10} }, grid: { display: false }, border: { color: css('--grid') } },
+                y: { grace: '5%', ticks: { color: css('--text-3'), font: {size: 10}, callback: v => '$' + fmt(v, 0) }, grid: { color: css('--grid') }, border: { display: false } } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` Gold: $${fmt(c.parsed.y, 0)}` } } } } });
+  charts.push(ch); return ch;
+}
+function drawWgcStackedChart(canvas, quarters) {
+  const labels = quarters.map(q => q.quarter);
+  const ch = new Chart(canvas, { type: 'bar',
+    data: { labels, datasets: WGC_SERIES.map(([k, label, color]) => ({ label, data: quarters.map(q => q[k] ?? null),
+      backgroundColor: css(color), borderRadius: 3, stack: 'wgc' })) },
+    options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
+      scales: { x: { stacked: true, grid: { display: false }, ticks: { maxTicksLimit: 10, color: css('--text-3'), font: {size: 10} } },
+                y: { stacked: true, grid: { color: css('--grid') }, border: { display: false }, ticks: { color: css('--text-3'), font: {size: 10}, callback: v => fmt(v, 0) } } },
+      plugins: { legend: { position: 'bottom', labels: { color: css('--text-2'), boxWidth: 10, boxHeight: 3, font: {size: 11} } },
+        tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${fmt(c.parsed.y, 0)}t`,
+          footer: items => `Total: ${fmt(items.reduce((s, i) => s + (i.parsed.y || 0), 0), 0)}t` } } } } });
+  charts.push(ch); return ch;
+}
 function drawGold(el) {
   const d = D.gold_real_yields; if (!d) return missing(el);
   const L = d.latest, w = d.wgc, q = w?.quarters || [];
@@ -252,17 +281,17 @@ function drawGold(el) {
       <div class="box"><canvas id="c-gold-real" role="img" aria-label="Gold vs 10Y real yield, inverted"></canvas></div>
     </div>
     <div class="charts">
-    <div class="chart"><h3>Central bank net gold purchases (tonnes, WGC, quarterly)</h3>${q.length ? '<div class="box"><canvas id="c-wgc"></canvas></div>'
-      : '<div class="empty">No data yet. Add quarters to data/wgc_manual.json when Gold Demand Trends is published.</div>'}</div></div>${warnHtml(d)}`;
+    ${d.series.gold_5y ? chartBox('Gold price, past 5 years (USD/oz)', 'c-gold-5y') : ''}
+    <div class="chart"><h3>Gold demand by category (tonnes, WGC, quarterly)</h3>${q.length ? '<div class="box"><canvas id="c-wgc"></canvas></div>'
+      : '<div class="empty">No data yet. The WGC scrape either hasn\'t run or hasn\'t landed - add quarters to data/wgc_manual.json to fill this in by hand.</div>'}</div></div>${warnHtml(d)}`;
   const hzEl = el.querySelector('#gold-hz');
   GOLD_HORIZONS.forEach(([lbl, key]) => { const b = $(`<button aria-pressed="${key === goldHorizon}">${lbl}</button>`);
     b.onclick = () => { goldHorizon = key; hzEl.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
       drawGoldRealChart(el.querySelector('#c-gold-real'), d); };
     hzEl.appendChild(b); });
   drawGoldRealChart(el.querySelector('#c-gold-real'), d);
-  if (q.length) charts.push(new Chart(el.querySelector('#c-wgc'), { type: 'bar', data: { labels: q.map(x => x.quarter), datasets: [{ label: 'Tonnes', data: q.map(x => x.net_purchases_tonnes), backgroundColor: css('--s1'), borderRadius: 3 }] },
-    options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false } },
-      scales: { x: { grid: { display: false }, ticks: { color: css('--text-3'), font: {size: 10} } }, y: { grid: { color: css('--grid') }, border: { display: false }, ticks: { color: css('--text-3'), font: {size: 10} } } } } }));
+  if (d.series.gold_5y) drawGold5yChart(el.querySelector('#c-gold-5y'), d.series.gold_5y);
+  if (q.length) drawWgcStackedChart(el.querySelector('#c-wgc'), q);
 }
 function drawFrontier(el) {
   const d = D.frontier; if (!d) return missing(el);
