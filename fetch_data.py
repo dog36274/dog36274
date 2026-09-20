@@ -497,14 +497,17 @@ WGC_CATEGORIES = ("jewellery_fabrication", "investment", "central_banks_and_othe
 
 def scrape_wgc_demand():
     """Best-effort scrape of the World Gold Council's quarterly gold demand by
-    category (gold.org/goldhub) - jewellery fabrication, investment, and central
-    banks & other institutions, in tonnes. Gold Demand Trends is WGC's flagship
-    (often paywalled) report, so unlike the free government sources elsewhere in
-    this file, a public API isn't confirmed to exist. Not seen live yet: this
-    looks for the two common ways a page like this exposes its chart data (an
-    embedded JSON state blob, or a CSV/XLSX download link) rather than guessing
-    a specific API path, and on a miss reports every candidate it did find so
-    the real shape is fixable from one log without guessing blind."""
+    category - jewellery fabrication, investment, and central banks & other
+    institutions, in tonnes. The interactive data-explorer page
+    (goldhub/data/gold-demand-by-category) is confirmed blocked (consistent 503
+    across repeated attempts, looks like anti-bot). This instead reads the
+    quarterly written report under goldhub/research/gold-demand-trends (e.g.
+    "Gold Demand Trends Q2 2026"), a plain article page that's far less likely to
+    be behind the same protection as the interactive data product. Finds the
+    current report by scanning the research hub's own links rather than guessing
+    a quarter/year slug that would go stale every three months, then reads the
+    tonnage figures out of its text. Wording/layout not confirmed live yet - a
+    miss reports the real surrounding text so it's fixable from one log."""
     if DEMO:
         rng = np.random.default_rng(7)
         quarters = []
@@ -517,42 +520,32 @@ def scrape_wgc_demand():
                                  "investment": round(max(-100, 260 + rng.normal(0, 120)), 0),
                                  "central_banks_and_other_institutions": round(max(0, 190 + rng.normal(0, 90)), 0)})
         return quarters
-    r = http_get("https://www.gold.org/goldhub/data/gold-demand-by-category")
-    text = r.text
-    # 1) an embedded JSON state blob (Next.js/Nuxt/similar SPA pattern)
-    blobs = re.findall(r'<script[^>]+id="__NEXT_DATA__"[^>]*>(.*?)</script>', text, re.S)
-    blobs += re.findall(r'window\.__\w*STATE\w*__\s*=\s*(\{.*?\});', text, re.S)
-    for blob in blobs:
-        try:
-            data = json.loads(blob)
-        except Exception:  # noqa: BLE001
-            continue
-        dumped = json.dumps(data)
-        if "jewellery" in dumped.lower() or "fabrication" in dumped.lower():
-            # Right blob, but the key path through it isn't mapped yet - report its
-            # shape rather than guess a path that could KeyError or, worse, silently
-            # pull the wrong numbers.
-            raise RuntimeError(f"WGC: found a data blob mentioning jewellery/fabrication "
-                               f"but haven't mapped its structure yet; top-level keys="
-                               f"{list(data.keys()) if isinstance(data, dict) else type(data)}; "
-                               f"snippet={dumped[:800]!r}")
-    # 2) a CSV/XLSX/JSON download link
-    dl_links = re.findall(r'href="([^"]+\.(?:csv|xlsx?|json))"', text, re.I)
-    for link in dl_links[:5]:
-        dl_url = link if link.startswith("http") else f"https://www.gold.org{link}"
-        try:
-            resp = http_get(dl_url)
-        except Exception:  # noqa: BLE001
-            continue
-        head = resp.content[:200]
-        if b"jewellery" in head.lower() or b"fabrication" in head.lower() or head[:4] == b"PK\x03\x04":
-            raise RuntimeError(f"WGC: download link {dl_url} looks promising (first bytes "
-                               f"{head[:20]!r}) but its layout isn't mapped yet")
-    snippet = re.sub(r"\s+", " ", text)[:400]
-    api_srcs = [s for s in re.findall(r'<script[^>]+src="([^"]+)"', text) if re.search(r"api|data|chart", s, re.I)]
-    raise RuntimeError(f"WGC demand-by-category (status {r.status_code}): no usable data blob "
-                       f"or download link found; download-link candidates={dl_links[:10]}; "
-                       f"possible data scripts={api_srcs[:10]}; body {snippet!r}")
+    hub = http_get("https://www.gold.org/goldhub/research/gold-demand-trends")
+    report_links = list(dict.fromkeys(re.findall(
+        r'href="(/goldhub/research/gold-demand-trends/gold-demand-trends-q\d-\d{4})"', hub.text, re.I)))
+    if not report_links:
+        snippet = re.sub(r"\s+", " ", hub.text)[:400]
+        raise RuntimeError(f"WGC: no gold-demand-trends-qN-YYYY report links found on the research "
+                           f"hub page (status {hub.status_code}); body {snippet!r}")
+    report_url = f"https://www.gold.org{report_links[0]}"
+    m = re.search(r"q(\d)-(\d{4})", report_url, re.I)
+    quarter = f"{m.group(2)}Q{m.group(1)}"
+    r = http_get(report_url)
+    plain = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", r.text))
+    patterns = {"jewellery_fabrication": r"jewellery\s+fabrication",
+                "investment": r"\binvestment\b",
+                "central_banks_and_other_institutions": r"central\s+banks?\s*(?:&|and)\s*other\s+institutions?"}
+    found = {}
+    for key, pat in patterns.items():
+        g = re.search(pat + r"[^\d\-]{0,40}(-?[\d,]+(?:\.\d+)?)\s*t\b", plain, re.I)
+        if g:
+            found[key] = float(g.group(1).replace(",", ""))
+    if len(found) == len(patterns):
+        return [{"quarter": quarter, **found}]
+    i = plain.lower().find("jewellery")
+    context = plain[max(0, i - 50):i + 400] if i >= 0 else "'jewellery' not found on the page at all"
+    raise RuntimeError(f"WGC report {report_url} (quarter {quarter}): matched only {found} "
+                       f"of {list(patterns)}; text near 'jewellery': {context!r}")
 
 
 def wgc_data(p):
