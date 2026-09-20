@@ -1,12 +1,14 @@
 {
- "last_run": "2026-09-20T17:26:19+00:00",
+ "last_run": "2026-09-20T17:35:43+00:00",
  "demo": false,
  "all_ok": false,
  "panels": {
   "korea_fx": {
-   "ok": false,
-   "error": "Stooq usdkrw: unexpected response: '<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"robots\" content=\"noindex,nofollow\"></head><body><noscript>This site requires JavaScript to verify your browser. Please enable JavaScript an'",
-   "updated": null
+   "ok": true,
+   "updated": "2026-09-20T17:35:43+00:00",
+   "warnings": [
+    "BoK base rate: BOK_API_KEY not set"
+   ]
   },
   "us_rates": {
    "ok": false,
@@ -15,17 +17,17 @@
   },
   "gold_real_yields": {
    "ok": false,
-   "error": "Stooq xauusd: unexpected response: '<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"robots\" content=\"noindex,nofollow\"></head><body><noscript>This site requires JavaScript to verify your browser. Please enable JavaScript an'",
+   "error": "Stooq xauusd: unexpected response: '<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"robots\" content=\"noindex,nofollow\"></head><body><noscript>This site requires JavaScript to verify your browser. Please enable JavaScript an'; Yahoo Finance fallback also failed: GET https://query1.finance.yahoo.com/v8/finance/chart/XAU=X failed: 404 Client Error: Not Found for url: https://query1.finance.yahoo.com/v8/finance/chart/XAU=X?range=2y&interval=1d",
    "updated": null
   },
   "frontier": {
    "ok": false,
-   "error": "Stooq emb.us: unexpected response: '<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"robots\" content=\"noindex,nofollow\"></head><body><noscript>This site requires JavaScript to verify your browser. Please enable JavaScript an'",
+   "error": "GET https://fred.stlouisfed.org/graph/fredgraph.csv failed: HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Read timed out. (read timeout=60)",
    "updated": null
   },
   "uk_gilts": {
    "ok": true,
-   "updated": "2026-09-20T17:26:19+00:00",
+   "updated": "2026-09-20T17:35:43+00:00",
    "warnings": [
     "DMO gilts in issue: unrecognised export format (status 200, first bytes b'\\r\\n\\r\\n<!DO', body ' <!DOCTYPE html> <html lang=\"en\"> <head> <meta charset=\"UTF-8\"> <title>Gilts in Issue</title> <meta name=\"viewport\" content=\"width=device-width\" /> <link rel=\"apple-touch-icon-precomposed\" sizes=\"57x57\" href=\"/dist/favicons/dmo/apple-touch-icon-57x57.png\" /> <link rel=\"apple-touch-icon-precomposed\" ')",
     "ONS central_govt_interest: CDID not configured",
@@ -51,7 +53,12 @@
     "series": "usdkrw",
     "notional": 1000000
    },
-   "note": "no live comparable series - tracked as a view"
+   "series": "usdkrw",
+   "current": 1385.949951171875,
+   "pnl_pct": 4.42,
+   "pnl_usd": 46214.0,
+   "notional": 1000000.0,
+   "progress_to_target_pct": 213.5
   },
   "duration_call": {
    "detail": {
@@ -64,7 +71,8 @@
  "snapshots": {
   "2026-09-20": {
    "gilt10": 5.2421,
-   "bank_rate": 3.75
+   "bank_rate": 3.75,
+   "usdkrw": 1385.949951171875
   }
  },
  "streak": 0,
