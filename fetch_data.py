@@ -71,7 +71,7 @@ def http_get(url, params=None, headers=None, retries=3, timeout=45):
     raise RuntimeError(f"GET {url.split('?')[0]} failed: {last}")
 
 
-YAHOO_SYMBOLS = {"usdkrw": "KRW=X", "xauusd": "XAU=X", "emb.us": "EMB"}
+YAHOO_SYMBOLS = {"usdkrw": "KRW=X", "xauusd": "GC=F", "emb.us": "EMB"}
 
 
 def yahoo_finance(symbol):
