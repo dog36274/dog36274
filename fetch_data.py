@@ -264,7 +264,15 @@ def scrape_dmo():
         try:
             tables = pd.read_html(StringIO(r.text))
         except Exception:  # noqa: BLE001 - not HTML, try Excel
-            tables = list(pd.read_excel(BytesIO(r.content), sheet_name=None, header=None).values())
+            # Sniff the real format from magic bytes rather than guessing an engine:
+            # xlrd 2.0+ only reads legacy .xls (OLE2), openpyxl only reads .xlsx (zip).
+            if r.content[:4] == b"PK\x03\x04":
+                engine = "openpyxl"
+            elif r.content[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1":
+                engine = "xlrd"
+            else:
+                raise RuntimeError(f"unrecognised export format (first bytes {r.content[:8]!r})")
+            tables = list(pd.read_excel(BytesIO(r.content), sheet_name=None, header=None, engine=engine).values())
         best = None
         for t in tables:
             for row in t.astype(str).values.tolist():
@@ -280,31 +288,44 @@ def scrape_dmo():
         import re
         import pdfplumber
         pdf = http_get("https://www.dmo.gov.uk/dmo_static_reports/currentremit.pdf").content
+        candidates = []  # (value_gbp_bn, source_description)
         with pdfplumber.open(BytesIO(pdf)) as f:
-            text = "\n".join((pg.extract_text() or "") for pg in f.pages[:5])
+            pages = f.pages[:8]
+            text = "\n".join((pg.extract_text() or "") for pg in pages)
+            # 1) prose statement of the headline figure - wording varies by year
+            #    ("gross financing requirement of £X billion", "gilt sales ... of £X billion", ...)
+            patterns = [
+                r"gross\s+(?:financing\s+requirement|gilt\s+(?:sales|issuance))[^\n]{0,80}?"
+                r"(?:£|GBP)\s?([\d,]+\.?\d*)\s?(?:billion|bn)\b",
+                r"(?:£|GBP)\s?([\d,]+\.?\d*)\s?(?:billion|bn)[^\n]{0,60}?gross\s+gilt",
+                r"financing\s+remit[^\n]{0,80}?(?:£|GBP)\s?([\d,]+\.?\d*)\s?(?:billion|bn)\b",
+                r"(?:gross|total)[^\n]{0,60}?(?:£|GBP)?\s?([\d,]+\.?\d*)\s?(?:billion|bn|m)\b",
+            ]
+            for pat in patterns:
+                g = re.search(pat, text, re.I)
+                if g:
+                    v = float(g.group(1).replace(",", ""))
+                    candidates.append((v / 1000 if v > 5_000 else v, f"text pattern {pat[:30]!r}"))
+            # 2) summary-table row: a "Total" row/column in a gilt-sales table (figures in £m)
+            for pg in pages:
+                for tbl in (pg.extract_tables() or []):
+                    for row in tbl:
+                        cells = [c for c in row if c]
+                        if any("total" in str(c).lower() for c in cells):
+                            nums = _numbers(cells)
+                            if nums:
+                                candidates.append((max(nums) / 1000, "table 'Total' row"))
         m = re.search(r"(20\d\d-\d\d)", text)
-        # DMO remit wording varies by year ("gross financing requirement of £X billion",
-        # "gilt sales in 2025-26 are planned to be £X billion", "gross gilt issuance of £Xbn", ...).
-        # Try progressively looser patterns until one lands in the plausible range.
-        patterns = [
-            r"gross\s+(?:financing\s+requirement|gilt\s+(?:sales|issuance))[^\n]{0,80}?"
-            r"(?:£|GBP)\s?([\d,]+\.?\d*)\s?(?:billion|bn)\b",
-            r"(?:£|GBP)\s?([\d,]+\.?\d*)\s?(?:billion|bn)[^\n]{0,60}?gross\s+gilt",
-            r"(?:gross|total)[^\n]{0,60}?(?:£|GBP)?\s?([\d,]+\.?\d*)\s?(?:billion|bn|m)\b",
-        ]
-        val = None
-        for pat in patterns:
-            g = re.search(pat, text, re.I)
-            if g:
-                val = float(g.group(1).replace(",", ""))
+        val = source = None
+        for v, src in candidates:
+            if 100 <= v <= 500:
+                val, source = v, src
                 break
-        if val and val > 5_000:
-            val /= 1000                                # was in GBP m
-        if val and 100 <= val <= 500:
+        if val:
             out["remit_gbp_bn"], out["remit_fiscal_year"] = round(val, 1), (m.group(1) if m else None)
         else:
-            snippet = re.sub(r"\s+", " ", text)[:200]
-            notes.append(f"remit: no plausible gross figure found (got {val}); text starts {snippet!r}")
+            snippet = re.sub(r"\s+", " ", text)[:800]
+            notes.append(f"remit: no plausible gross figure found (candidates {candidates}); text starts {snippet!r}")
     except Exception as e:  # noqa: BLE001
         notes.append(f"remit: {e}")
     out["scrape_notes"] = notes

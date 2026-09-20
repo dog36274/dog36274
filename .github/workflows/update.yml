@@ -32,7 +32,11 @@ jobs:
           # JSON files are still updated for whatever succeeded (failures keep
           # the previous file). Always run build_single.py so the-desk.html
           # reflects that, then surface the fetch failure to the job status.
-          python fetch_data.py; fetch_status=$?
+          # (`|| fetch_status=$?`, not `; fetch_status=$?` - this step runs
+          # under `bash -e`, which aborts the whole script on the first
+          # non-zero exit unless the failure is caught by || or an if.)
+          python fetch_data.py || fetch_status=$?
+          fetch_status=${fetch_status:-0}
           python build_single.py
           exit $fetch_status
 
