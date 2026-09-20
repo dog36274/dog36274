@@ -203,14 +203,23 @@ def boe_gilt_30y():
         snippet = re.sub(r"\s+", " ", content[:300].decode("utf-8", "replace"))
         raise RuntimeError(f"{url} (from candidates {candidates[:5]}) is not a zip/xlsx "
                            f"(status {r.status_code}, first bytes {content[:8]!r}, body {snippet!r})")
-    sheet = next((s for s in xl.sheet_names if "spot" in s.lower() or "curve" in s.lower()),
-                xl.sheet_names[0])
+    # Prefer the actual par/spot yield curve over the forward curve - both sheet names
+    # contain "curve", so match "spot curve" specifically first.
+    sheet = (next((s for s in xl.sheet_names if "spot curve" in s.lower()), None)
+            or next((s for s in xl.sheet_names if "spot" in s.lower()), None)
+            or next((s for s in xl.sheet_names if "curve" in s.lower()), xl.sheet_names[0]))
     raw = xl.parse(sheet, header=None)
-    header_row = next((i for i in range(min(10, len(raw)))
-                       if any(str(v).strip() in ("30", "30.0", "30.00") for v in raw.iloc[i])), None)
+    header_row, max_maturity_seen = None, None
+    for i in range(min(10, len(raw))):
+        nums = [float(v) for v in raw.iloc[i] if isinstance(v, (int, float)) and not pd.isna(v)]
+        if nums and max(nums) >= 5:  # looks like a maturity-years header row, not a stray number
+            max_maturity_seen = max(nums)
+            if any(abs(v - 30) < 1e-6 for v in nums):
+                header_row = i
+                break
     if header_row is None:
-        raise RuntimeError(f"no 30y header found in sheet {sheet!r} of {xl.sheet_names} "
-                           f"(from {url}); top rows={raw.head(6).values.tolist()}")
+        raise RuntimeError(f"no 30y column in sheet {sheet!r} of {xl.sheet_names} (from {url}); "
+                           f"max maturity found in header candidates: {max_maturity_seen}")
     df = xl.parse(sheet, header=header_row, index_col=0)
     col30 = next((c for c in df.columns if str(c).strip() in ("30", "30.0", "30.00")), None)
     if col30 is None:
