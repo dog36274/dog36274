@@ -1,0 +1,74 @@
+{
+ "last_run": "2026-09-20T17:20:28+00:00",
+ "demo": false,
+ "all_ok": false,
+ "panels": {
+  "korea_fx": {
+   "ok": false,
+   "error": "Stooq usdkrw: unexpected response: '<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"robots\" content=\"noindex,nofollow\"></head><body><noscript>This site requires JavaScript to verify your browser. Please enable JavaScript an'",
+   "updated": null
+  },
+  "us_rates": {
+   "ok": false,
+   "error": "GET https://fred.stlouisfed.org/graph/fredgraph.csv failed: HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Read timed out. (read timeout=60)",
+   "updated": null
+  },
+  "gold_real_yields": {
+   "ok": false,
+   "error": "Stooq xauusd: unexpected response: '<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"robots\" content=\"noindex,nofollow\"></head><body><noscript>This site requires JavaScript to verify your browser. Please enable JavaScript an'",
+   "updated": null
+  },
+  "frontier": {
+   "ok": false,
+   "error": "Stooq emb.us: unexpected response: '<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"robots\" content=\"noindex,nofollow\"></head><body><noscript>This site requires JavaScript to verify your browser. Please enable JavaScript an'",
+   "updated": null
+  },
+  "uk_gilts": {
+   "ok": true,
+   "updated": "2026-09-20T17:20:28+00:00",
+   "warnings": [
+    "DMO gilts in issue: unrecognised export format (first bytes b'\\r\\n\\r\\n<!DO')",
+    "DMO remit: no plausible gross figure found (candidates []); text starts 'Gilt sales in the financial year to 15 September 2026 (\u00a3 million) Conventional Gilts Medium Long Index-linked gilts Total Short (inc. green)* Planned gilt sales at auctions 95,000 56,000 7,400 16,000 174,400 Number of auctions scheduled 20 14 4 13 51 Planned syndication sales 0 23,800 15,000 8,250 47,050 Number of syndications scheduled 0 2 3 2 7 Unallocated Portion 14,751 Gilt tender sales to date 7,680 1,951 368 0 9,999 Total planned gilt sales 102,680 81,751 22,768 24,250 246,200 Auction proceeds to date 47,784 22,640 0 9,899 80,323 PAOF proceeds to date 6,413 1,403 0 816 8,631 Auction and PAOF proceeds to date 54,197 24,043 0 10,715 88,955 Auction sales required to meet plans 40,803 31,957 7,400 5,285 85,445 Number of auctions remaining 9 8 4 6 27 Syndication sales to date 0 23,829 3,9'",
+    "ONS central_govt_interest: CDID not configured",
+    "ONS net_social_benefits: CDID not configured"
+   ]
+  }
+ },
+ "talking_points": {
+  "korea_fx": "First run - baseline recorded; deltas start next update.",
+  "us_rates": "First run - baseline recorded; deltas start next update.",
+  "gold_real_yields": "First run - baseline recorded; deltas start next update.",
+  "frontier": "First run - baseline recorded; deltas start next update.",
+  "uk_gilts": "First run - baseline recorded; deltas start next update."
+ },
+ "compared_with": null,
+ "positions": {
+  "usdkrw_ndf": {
+   "detail": {
+    "entry_date": "2026-08-01",
+    "direction": "short",
+    "entry_level": 1450,
+    "target": 1420,
+    "series": "usdkrw",
+    "notional": 1000000
+   },
+   "note": "no live comparable series - tracked as a view"
+  },
+  "duration_call": {
+   "detail": {
+    "entry_date": "2026-08-01",
+    "view": "2.19yr average duration"
+   },
+   "note": "no live comparable series - tracked as a view"
+  }
+ },
+ "snapshots": {
+  "2026-09-20": {
+   "gilt10": 5.2421,
+   "bank_rate": 3.75
+  }
+ },
+ "streak": 0,
+ "last_success_date": null,
+ "best_streak": 0
+}
