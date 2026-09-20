@@ -1,33 +1,33 @@
 {
- "last_run": "2026-09-20T17:44:41+00:00",
+ "last_run": "2026-09-20T18:03:27+00:00",
  "demo": false,
- "all_ok": false,
+ "all_ok": true,
  "panels": {
   "korea_fx": {
    "ok": true,
-   "updated": "2026-09-20T17:44:41+00:00",
+   "updated": "2026-09-20T18:03:27+00:00",
    "warnings": [
     "BoK base rate: BOK_API_KEY not set"
    ]
   },
   "us_rates": {
-   "ok": false,
-   "error": "GET https://fred.stlouisfed.org/graph/fredgraph.csv failed: HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Read timed out. (read timeout=60)",
-   "updated": null
+   "ok": true,
+   "updated": "2026-09-20T18:03:27+00:00",
+   "warnings": []
   },
   "gold_real_yields": {
-   "ok": false,
-   "error": "GET https://fred.stlouisfed.org/graph/fredgraph.csv failed: HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Read timed out. (read timeout=60)",
-   "updated": null
+   "ok": true,
+   "updated": "2026-09-20T18:03:27+00:00",
+   "warnings": []
   },
   "frontier": {
-   "ok": false,
-   "error": "GET https://fred.stlouisfed.org/graph/fredgraph.csv failed: HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Read timed out. (read timeout=60)",
-   "updated": null
+   "ok": true,
+   "updated": "2026-09-20T18:03:27+00:00",
+   "warnings": []
   },
   "uk_gilts": {
    "ok": true,
-   "updated": "2026-09-20T17:44:41+00:00",
+   "updated": "2026-09-20T18:03:27+00:00",
    "warnings": [
     "DMO gilts in issue: unrecognised export format (status 200, first bytes b'\\r\\n\\r\\n<!DO', body ' <!DOCTYPE html> <html lang=\"en\"> <head> <meta charset=\"UTF-8\"> <title>Gilts in Issue</title> <meta name=\"viewport\" content=\"width=device-width\" /> <link rel=\"apple-touch-icon-precomposed\" sizes=\"57x57\" href=\"/dist/favicons/dmo/apple-touch-icon-57x57.png\" /> <link rel=\"apple-touch-icon-precomposed\" ')",
     "ONS central_govt_interest: CDID not configured",
@@ -72,10 +72,17 @@
   "2026-09-20": {
    "gilt10": 5.2421,
    "bank_rate": 3.75,
-   "usdkrw": 1385.949951171875
+   "usdkrw": 1385.949951171875,
+   "ust2": 4.67,
+   "ust10": 4.94,
+   "curve_2s10s": 27.000000000000046,
+   "gold": 4424.89990234375,
+   "real10": 2.61,
+   "emb": 93.37999725341797,
+   "corr60": -0.8547381854896253
   }
  },
- "streak": 0,
- "last_success_date": null,
- "best_streak": 0
+ "streak": 1,
+ "last_success_date": "2026-09-20",
+ "best_streak": 1
 }
