@@ -206,8 +206,9 @@ function drawUS(el) {
    specific comparison is charted. Each axis auto-fits to its own filtered series (via
    `grace`), so the two lines span a comparable share of the chart height regardless of
    their absolute units. */
-const GOLD_HORIZONS = [['1M', '1m'], ['3M', '3m'], ['6M', '6m'], ['1Y', '1y'], ['YTD', 'ytd']];
+const HZ_OPTIONS = [['1M', '1m'], ['3M', '3m'], ['6M', '6m'], ['1Y', '1y'], ['YTD', 'ytd']];
 let goldHorizon = '1y', goldChart = null;
+let nokOilHorizon = '1y', nokOilChart = null, nokOilCorrChart = null;
 function filterHorizon(pairs, key) {
   if (!pairs || !pairs.length) return [];
   const last = new Date(pairs[pairs.length - 1][0]);
@@ -285,7 +286,7 @@ function drawGold(el) {
     <div class="chart"><h3>Gold demand by category (tonnes, WGC, quarterly)</h3>${q.length ? '<div class="box"><canvas id="c-wgc"></canvas></div>'
       : '<div class="empty">No data yet. The WGC scrape either hasn\'t run or hasn\'t landed - add quarters to data/wgc_manual.json to fill this in by hand.</div>'}</div></div>${warnHtml(d)}`;
   const hzEl = el.querySelector('#gold-hz');
-  GOLD_HORIZONS.forEach(([lbl, key]) => { const b = $(`<button aria-pressed="${key === goldHorizon}">${lbl}</button>`);
+  HZ_OPTIONS.forEach(([lbl, key]) => { const b = $(`<button aria-pressed="${key === goldHorizon}">${lbl}</button>`);
     b.onclick = () => { goldHorizon = key; hzEl.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
       drawGoldRealChart(el.querySelector('#c-gold-real'), d); };
     hzEl.appendChild(b); });
@@ -301,6 +302,69 @@ function drawFrontier(el) {
     <div class="warn">${esc(d.corr_method)}. A frontier-bond ETF proxy: no liquid pure-frontier bond ETF exists.</div>${warnHtml(d)}`;
   lineChart(el.querySelector('#c-etf'), [{label: d.ticker, pairs: d.series.etf, color: '--s1'}]);
   lineChart(el.querySelector('#c-corr'), [{label: 'Correlation', pairs: d.series.corr60, color: '--s2'}], {});
+}
+/* NOK/EUR vs Brent: same dual-axis-by-deliberate-choice reasoning as gold vs real
+   yields above - a petrocurrency and the commodity it tracks, different units, each
+   axis auto-fit to its own filtered range so both read at a comparable scale. Not
+   inverted (unlike gold/real yields): NOK typically strengthens *with* oil, not
+   against it. */
+function drawNokOilChart(canvas, d) {
+  if (nokOilChart) { const i = charts.indexOf(nokOilChart); if (i >= 0) charts.splice(i, 1); nokOilChart.destroy(); }
+  const nok = filterHorizon(d.series.nok_eur, nokOilHorizon), oil = filterHorizon(d.series.oil, nokOilHorizon);
+  const labels = [...new Set([...nok, ...oil].map(p => p[0]))].sort();
+  const nm = new Map(nok), om = new Map(oil);
+  nokOilChart = new Chart(canvas, { type: 'line', plugins: [crosshair],
+    data: { labels, datasets: [
+      { label: 'NOK/EUR', data: labels.map(l => nm.has(l) ? nm.get(l) : null), yAxisID: 'y',
+        borderColor: css('--s1'), backgroundColor: css('--s1'), borderWidth: 2, pointRadius: 0, pointHoverRadius: 4,
+        pointHoverBorderWidth: 2, pointHoverBorderColor: css('--surface'), tension: 0, spanGaps: true },
+      { label: 'Brent crude (USD/bbl)', data: labels.map(l => om.has(l) ? om.get(l) : null), yAxisID: 'y1',
+        borderColor: css('--s2'), backgroundColor: css('--s2'), borderWidth: 2, pointRadius: 0, pointHoverRadius: 4,
+        pointHoverBorderWidth: 2, pointHoverBorderColor: css('--surface'), tension: 0, spanGaps: true } ] },
+    options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: { ticks: { maxTicksLimit: 6, maxRotation: 0, color: css('--text-3'), font: {size: 10} }, grid: { display: false }, border: { color: css('--grid') } },
+        y: { position: 'left', grace: '10%', ticks: { color: css('--s1'), font: {size: 10}, callback: v => fmt(v, 4) },
+             grid: { color: css('--grid') }, border: { display: false } },
+        y1: { position: 'right', grace: '10%', ticks: { color: css('--s2'), font: {size: 10}, callback: v => '$' + fmt(v, 0) },
+             grid: { display: false }, border: { display: false } } },
+      plugins: { legend: { position: 'bottom', labels: { color: css('--text-2'), boxWidth: 10, boxHeight: 3, font: {size: 11} } },
+        tooltip: { callbacks: { label: c => c.dataset.yAxisID === 'y' ? ` NOK/EUR: ${fmt(c.parsed.y, 4)}` : ` Brent: $${fmt(c.parsed.y, 2)}` } } } } });
+  charts.push(nokOilChart);
+}
+function drawNokOilCorrChart(canvas, d) {
+  if (nokOilCorrChart) { const i = charts.indexOf(nokOilCorrChart); if (i >= 0) charts.splice(i, 1); nokOilCorrChart.destroy(); }
+  const corr = filterHorizon(d.series.corr60, nokOilHorizon);
+  nokOilCorrChart = new Chart(canvas, { type: 'line', plugins: [crosshair],
+    data: { labels: corr.map(p => p[0]), datasets: [{ label: '60d correlation', data: corr.map(p => p[1]),
+      borderColor: css('--s3'), backgroundColor: css('--s3'), borderWidth: 2, pointRadius: 0, pointHoverRadius: 4,
+      pointHoverBorderWidth: 2, pointHoverBorderColor: css('--surface'), tension: 0, spanGaps: true }] },
+    options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
+      scales: { x: { ticks: { maxTicksLimit: 6, maxRotation: 0, color: css('--text-3'), font: {size: 10} }, grid: { display: false }, border: { color: css('--grid') } },
+                y: { min: -1, max: 1, ticks: { color: css('--text-3'), font: {size: 10}, callback: v => fmt(v, 1) }, grid: { color: css('--grid') }, border: { display: false } } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` Correlation: ${fmt(c.parsed.y, 2)}` } } } } });
+  charts.push(nokOilCorrChart);
+}
+function drawNokOil(el) {
+  const d = D.nok_oil; if (!d) return missing(el);
+  const L = d.latest;
+  el.innerHTML = `<div class="tiles">${tile('NOK/EUR', fmt(first(L.nok_eur), 4), asOf(L.nok_eur))}${tile('Brent crude', '$' + fmt(first(L.oil), 2), asOf(L.oil))}${tile('60d correlation', L.corr60 == null ? '–' : fmt(L.corr60))}</div>
+    <div class="chart">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px">
+        <h3 style="margin:0">NOK/EUR vs Brent crude (secondary axis)</h3>
+        <div class="toolbar" id="nokoil-hz" style="margin:0"></div>
+      </div>
+      <div class="box"><canvas id="c-nokoil" role="img" aria-label="NOK/EUR vs Brent crude"></canvas></div>
+    </div>
+    <div class="charts">${chartBox('Rolling 60-day correlation (NOK/EUR vs Brent, daily % returns)', 'c-nokoil-corr')}</div>
+    <div class="warn">${esc(d.corr_method)}</div>${warnHtml(d)}`;
+  const hzEl = el.querySelector('#nokoil-hz');
+  HZ_OPTIONS.forEach(([lbl, key]) => { const b = $(`<button aria-pressed="${key === nokOilHorizon}">${lbl}</button>`);
+    b.onclick = () => { nokOilHorizon = key; hzEl.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
+      drawNokOilChart(el.querySelector('#c-nokoil'), d); drawNokOilCorrChart(el.querySelector('#c-nokoil-corr'), d); };
+    hzEl.appendChild(b); });
+  drawNokOilChart(el.querySelector('#c-nokoil'), d);
+  drawNokOilCorrChart(el.querySelector('#c-nokoil-corr'), d);
 }
 function drawUK(el) {
   const d = D.uk_gilts; if (!d) return missing(el);
@@ -347,11 +411,12 @@ function drawPositions() {
 
 /* ---------- render ---------- */
 const PANELS = [['korea_fx', 'Korea FX', 'USD/KRW and the Bank of Korea', drawKorea], ['us_rates', 'US Rates & the Fed', '', drawUS],
-  ['gold_real_yields', 'Gold & Real Yields', '', drawGold], ['frontier', 'Frontier Markets', '', drawFrontier], ['uk_gilts', 'UK Gilts', '', drawUK]];
+  ['gold_real_yields', 'Gold & Real Yields', '', drawGold], ['frontier', 'Frontier Markets', '', drawFrontier],
+  ['nok_oil', 'NOK/EUR & Oil', '', drawNokOil], ['uk_gilts', 'UK Gilts', '', drawUK]];
 
 function render() {
   charts.splice(0).forEach(c => c.destroy());
-  goldChart = null;
+  goldChart = null; nokOilChart = null; nokOilCorrChart = null;
   const host = document.getElementById('panels'); host.innerHTML = '';
   drawPositions();
   for (const [key, title, blurb, fn] of PANELS) { const el = panelShell(key, title, blurb); host.appendChild(el); fn(el.querySelector('.body')); }
@@ -367,7 +432,7 @@ function header() {
   const rb = document.getElementById('range');
   RANGES.forEach(([lbl, n]) => { const b = $(`<button aria-pressed="${n === rangeN}">${lbl}</button>`);
     b.onclick = () => { rangeN = n; rb.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); render(); }; rb.appendChild(b); });
-  const names = ['korea_fx', 'us_rates', 'gold_real_yields', 'frontier', 'uk_gilts', 'log'];
+  const names = [...PANELS.map(([key]) => key), 'log'];   // derived from PANELS so adding a panel there is enough
   const res = await Promise.all(names.map(load)); names.forEach((n, i) => D[n] = res[i]);
   D.positions = D.log?.positions; header(); render();
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);

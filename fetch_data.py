@@ -74,12 +74,14 @@ def http_get(url, params=None, headers=None, retries=3, timeout=45):
 YAHOO_SYMBOLS = {"usdkrw": "KRW=X", "xauusd": "GC=F", "emb.us": "EMB"}
 
 
-def yahoo_finance(symbol, years=2):
-    """Fallback when Stooq is blocked: daily close series from Yahoo Finance's public
-    chart API (no key required). Only covers the symbols in YAHOO_SYMBOLS."""
+def yahoo_finance(symbol, years=2, yf_symbol=None):
+    """Daily close series from Yahoo Finance's public chart API (no key required).
+    `yf_symbol` overrides the YAHOO_SYMBOLS lookup for callers that don't have (or
+    need) a corresponding Stooq symbol - e.g. a series fetched from Yahoo directly
+    rather than as a stooq() fallback."""
     if DEMO:
         return demo_series(symbol)
-    yf_symbol = YAHOO_SYMBOLS.get(symbol)
+    yf_symbol = yf_symbol or YAHOO_SYMBOLS.get(symbol)
     if not yf_symbol:
         raise RuntimeError(f"no Yahoo Finance mapping for {symbol}")
     j = http_get(f"https://query1.finance.yahoo.com/v8/finance/chart/{yf_symbol}",
@@ -271,7 +273,8 @@ DEMO_BASE = {"usdkrw": (1440, .004), "xauusd": (3900, .009), "emb.us": (92, .003
              "fred:DFF": (4.1, 0),
              "fred:CPIAUCSL": (320, .0003), "fred:DFII10": (1.8, .012), "bok": (2.5, 0),
              "boe:IUDBEDR": (3.75, 0), "boe:IUDSNPY": (3.9, .01), "boe:IUDMNPY": (4.5, .008),
-             "boe:IUDLNPY": (5.1, .006), "boe:gilt30": (5.3, .006)}
+             "boe:IUDLNPY": (5.1, .006), "boe:gilt30": (5.3, .006),
+             "eurnok": (11.7, .003), "oil_brent": (78, .015)}
 
 
 def demo_series(name):
@@ -636,6 +639,29 @@ def panel_frontier():
     return p
 
 
+def panel_nok_oil():
+    p = Panel()
+    # Stooq is currently blocked outright (JS bot-check, see stooq()'s docstring) for
+    # every symbol we've tried, so these go straight to Yahoo rather than guessing at
+    # Stooq's own symbol names for a minor FX cross and a commodity future - nothing
+    # useful would come from routing through stooq() first right now.
+    eurnok = yahoo_finance("eurnok", years=5, yf_symbol="EURNOK=X")
+    nok_eur = (1 / eurnok).dropna().sort_index()
+    nok_eur.name = "nok_eur"
+    oil = yahoo_finance("oil_brent", years=5, yf_symbol="BZ=F")
+    p.snap.update(nok_eur=last(nok_eur)[0], oil_brent=last(oil)[0])
+    df = pd.concat([nok_eur, oil], axis=1, keys=["nok_eur", "oil"]).ffill().dropna()
+    ret = df.pct_change().dropna()
+    corr = ret["nok_eur"].rolling(60).corr(ret["oil"]).dropna()
+    if len(corr):
+        p.snap["nok_oil_corr60"] = float(corr.iloc[-1])
+    p.data = {"corr_method": "rolling 60-day correlation of NOK/EUR daily % return vs Brent daily % return",
+              "latest": {"nok_eur": last(nok_eur), "oil": last(oil),
+                         "corr60": round(float(corr.iloc[-1]), 3) if len(corr) else None},
+              "series": {"nok_eur": pairs(nok_eur, 1400), "oil": pairs(oil, 1400), "corr60": pairs(corr, 1400)}}
+    return p
+
+
 def panel_uk():
     p = Panel()
     df = boe(list(BOE_SERIES.values()))
@@ -679,7 +705,7 @@ def panel_uk():
 
 
 PANELS = [("korea_fx", panel_korea), ("us_rates", panel_us), ("gold_real_yields", panel_gold),
-          ("frontier", panel_frontier), ("uk_gilts", panel_uk)]
+          ("frontier", panel_frontier), ("nok_oil", panel_nok_oil), ("uk_gilts", panel_uk)]
 
 
 # ------------------------- talking points / positions -----------------------
@@ -692,7 +718,7 @@ def talking_points(snap, prev, positions, status):
     tp = {}
     if not prev:
         return {k: "First run - baseline recorded; deltas start next update." for k in
-                ("korea_fx", "us_rates", "gold_real_yields", "frontier", "uk_gilts")}
+                ("korea_fx", "us_rates", "gold_real_yields", "frontier", "nok_oil", "uk_gilts")}
 
     def has(*ks):
         return all(k in snap and k in prev for k in ks)
@@ -730,6 +756,14 @@ def talking_points(snap, prev, positions, status):
         if "corr60" in snap:
             s += f"; 60-day correlation with UST 10Y changes is {snap['corr60']:+.2f}"
         tp["frontier"] = s + "."
+    if has("nok_eur", "oil_brent"):
+        ch = pct(snap["nok_eur"], prev["nok_eur"])
+        ch_oil = pct(snap["oil_brent"], prev["oil_brent"])
+        s = (f"NOK/EUR {dirn(ch, 'rose', 'fell')} {abs(ch):.1f}% while Brent "
+             f"{dirn(ch_oil, 'rose', 'fell')} {abs(ch_oil):.1f}% to ${snap['oil_brent']:,.1f}")
+        if "nok_oil_corr60" in snap:
+            s += f"; 60-day correlation is {snap['nok_oil_corr60']:+.2f}"
+        tp["nok_oil"] = s + "."
     if has("gilt10"):
         bp = (snap["gilt10"] - prev["gilt10"]) * 100
         s = f"The 10Y gilt yield is {dirn(bp)} {abs(bp):.0f}bp to {snap['gilt10']:.2f}%"

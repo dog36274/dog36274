@@ -14,7 +14,8 @@ ap.add_argument("--data", default=str(ROOT / "data"))
 ap.add_argument("--out", default=str(ROOT / "the-desk.html"))
 a = ap.parse_args()
 
-names = ["korea_fx", "us_rates", "gold_real_yields", "frontier", "uk_gilts", "log"]
+# Must match the panel keys in fetch_data.py's PANELS list, plus "log".
+names = ["korea_fx", "us_rates", "gold_real_yields", "frontier", "nok_oil", "uk_gilts", "log"]
 data = {}
 for n in names:
     p = Path(a.data) / f"{n}.json"
