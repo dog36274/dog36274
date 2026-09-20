@@ -1,38 +1,43 @@
 {
- "last_run": "2026-09-20T21:15:12+00:00",
+ "last_run": "2026-09-20T21:33:33+00:00",
  "demo": false,
  "all_ok": true,
  "panels": {
   "korea_fx": {
    "ok": true,
-   "updated": "2026-09-20T21:15:12+00:00",
+   "updated": "2026-09-20T21:33:33+00:00",
    "warnings": [
     "BoK base rate: BOK_API_KEY not set"
    ]
   },
   "us_rates": {
    "ok": true,
-   "updated": "2026-09-20T21:15:12+00:00",
+   "updated": "2026-09-20T21:33:33+00:00",
    "warnings": []
   },
   "gold_real_yields": {
    "ok": true,
-   "updated": "2026-09-20T21:15:12+00:00",
+   "updated": "2026-09-20T21:33:33+00:00",
    "warnings": [
     "WGC demand: GET https://www.gold.org/goldhub/data/gold-demand-by-category failed: 503 Server Error: Service Unavailable for url: https://www.gold.org/goldhub/data/gold-demand-by-category"
    ]
   },
   "frontier": {
    "ok": true,
-   "updated": "2026-09-20T21:15:12+00:00",
+   "updated": "2026-09-20T21:33:33+00:00",
+   "warnings": []
+  },
+  "nok_oil": {
+   "ok": true,
+   "updated": "2026-09-20T21:33:33+00:00",
    "warnings": []
   },
   "uk_gilts": {
    "ok": true,
-   "updated": "2026-09-20T21:15:12+00:00",
+   "updated": "2026-09-20T21:33:33+00:00",
    "warnings": [
     "BoE 30Y gilt: 'years:' header row 3 in sheet '4. nominal spot curve' has no 30y column; maturities found: [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5, 10.0, 10.5, 11.0, 11.5, 12.0, 12.5, 13.0, 13.5, 14.0, 14.5, 15.0, 15.5, 16.0, 16.5, 17.0, 17.5, 18.0, 18.5, 19.0, 19.5, 20.0, 20.5, 21.0, 21.5, 22.0, 22.5, 23.0, 23.5, 24.0, 24.5, 25.0]",
-    "DMO gilts in issue: unrecognised export format (status 200); scripts=[]; export-string candidates=[]; body '<head><title>ShieldSquare Block</title><script type=\"text/javascript\"> window.SSJSInternal = 18155; var __uzdbm_1 = \"d45617ac-65a2-43a6-be38-3dc0535ec708\"; var __uzdbm_2 = \"ZWYxNWQ0NjctYmhiei00NzVhLTh'; export-script snippets={}",
+    "DMO gilts in issue: unrecognised export format (status 200); scripts=[]; export-string candidates=[]; body '<head><title>ShieldSquare Block</title><script type=\"text/javascript\"> window.SSJSInternal = 18155; var __uzdbm_1 = \"e331047b-3a21-4b28-b55b-f6b35d6788a0\"; var __uzdbm_2 = \"Yzg1ZjJmZTktYmhiei00OWYwLTg'; export-script snippets={}",
     "ONS central_govt_interest: CDID not configured",
     "ONS net_social_benefits: CDID not configured"
    ]
@@ -43,6 +48,7 @@
   "us_rates": "First run - baseline recorded; deltas start next update.",
   "gold_real_yields": "First run - baseline recorded; deltas start next update.",
   "frontier": "First run - baseline recorded; deltas start next update.",
+  "nok_oil": "First run - baseline recorded; deltas start next update.",
   "uk_gilts": "First run - baseline recorded; deltas start next update."
  },
  "compared_with": null,
@@ -57,9 +63,9 @@
     "notional": 1000000
    },
    "series": "usdkrw",
-   "current": 1384.6099853515625,
+   "current": 1384.5999755859375,
    "pnl_pct": 4.51,
-   "pnl_usd": 47226.0,
+   "pnl_usd": 47234.0,
    "notional": 1000000.0,
    "progress_to_target_pct": 218.0
   },
@@ -75,7 +81,7 @@
   "2026-09-20": {
    "gilt10": 5.2421,
    "bank_rate": 3.75,
-   "usdkrw": 1384.6099853515625,
+   "usdkrw": 1384.5999755859375,
    "ust2": 4.67,
    "ust10": 4.94,
    "curve_2s10s": 27.000000000000046,
@@ -83,7 +89,10 @@
    "real10": 2.61,
    "emb": 93.37999725341797,
    "corr60": -0.8547381854896253,
-   "ust30": 5.29
+   "ust30": 5.29,
+   "nok_eur": 0.09252654154502389,
+   "oil_brent": 99.29000091552734,
+   "nok_oil_corr60": 0.3769491389624697
   }
  },
  "streak": 1,
