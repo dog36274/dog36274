@@ -1,34 +1,39 @@
 {
- "last_run": "2026-09-20T18:18:21+00:00",
+ "last_run": "2026-09-20T18:19:27+00:00",
  "demo": false,
- "all_ok": false,
+ "all_ok": true,
  "panels": {
   "korea_fx": {
    "ok": true,
-   "updated": "2026-09-20T18:18:21+00:00",
+   "updated": "2026-09-20T18:19:27+00:00",
    "warnings": [
     "BoK base rate: BOK_API_KEY not set"
    ]
   },
   "us_rates": {
    "ok": true,
-   "updated": "2026-09-20T18:18:21+00:00",
+   "updated": "2026-09-20T18:19:27+00:00",
    "warnings": []
   },
   "gold_real_yields": {
    "ok": true,
-   "updated": "2026-09-20T18:18:21+00:00",
+   "updated": "2026-09-20T18:19:27+00:00",
    "warnings": []
   },
   "frontier": {
    "ok": true,
-   "updated": "2026-09-20T18:18:21+00:00",
+   "updated": "2026-09-20T18:19:27+00:00",
    "warnings": []
   },
   "uk_gilts": {
-   "ok": false,
-   "error": "Error tokenizing data. C error: Expected 1 fields in line 7, saw 2\n",
-   "updated": "2026-09-20T18:16:25+00:00"
+   "ok": true,
+   "updated": "2026-09-20T18:19:27+00:00",
+   "warnings": [
+    "BoE 30Y gilt: no 30y column in sheet '4. nominal spot curve' of ['info', '1. nominal fwds, short end', '2. nominal fwd curve', '3. nominal spot, short end', '4. nominal spot curve'] (from https://www.bankofengland.co.uk/-/media/boe/files/statistics/yield-curves/glcnominalddata.zip); max maturity found in header candidates: 12.685939810021505",
+    "DMO gilts in issue: unrecognised export format (status 200, first bytes b'<head><t', body '<head><title>ShieldSquare Block</title><script type=\"text/javascript\"> window.SSJSInternal = 18155; var __uzdbm_1 = \"a1ab738e-2cfe-4d68-a60e-4cbc635777ce\"; var __uzdbm_2 = \"OTI4M2IwZGYtYmhiei00YzAwLWIzMTktZGU2NWM5YmI1NjE5JDIwLjgzLjE1OC4zNQ==\"; (function(w, d, e, u, c, g, a, b){ w[\"SSJSConnectorObj\"]'); scripts=[]; api-path candidates=[]",
+    "ONS central_govt_interest: CDID not configured",
+    "ONS net_social_benefits: CDID not configured"
+   ]
   }
  },
  "talking_points": {
