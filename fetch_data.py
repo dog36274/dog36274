@@ -209,17 +209,19 @@ def boe_gilt_30y():
             or next((s for s in xl.sheet_names if "spot" in s.lower()), None)
             or next((s for s in xl.sheet_names if "curve" in s.lower()), xl.sheet_names[0]))
     raw = xl.parse(sheet, header=None)
-    header_row, max_maturity_seen = None, None
-    for i in range(min(10, len(raw))):
-        nums = [float(v) for v in raw.iloc[i] if isinstance(v, (int, float)) and not pd.isna(v)]
-        if nums and max(nums) >= 5:  # looks like a maturity-years header row, not a stray number
-            max_maturity_seen = max(nums)
-            if any(abs(v - 30) < 1e-6 for v in nums):
-                header_row = i
-                break
+    # A generic "row with a number >= 5" heuristic false-positives on real yield data
+    # (UK gilt yields were in the teens in the 1970s/80s). The maturity header row is
+    # precisely anchored instead: its first cell is the literal label "years:" (seen
+    # verbatim in a prior run's diagnostic dump of the neighbouring forward-curve sheet).
+    header_row = next((i for i in range(min(20, len(raw)))
+                       if str(raw.iloc[i, 0]).strip().lower() == "years:"), None)
     if header_row is None:
-        raise RuntimeError(f"no 30y column in sheet {sheet!r} of {xl.sheet_names} (from {url}); "
-                           f"max maturity found in header candidates: {max_maturity_seen}")
+        raise RuntimeError(f"no 'years:' header row found in sheet {sheet!r} of {xl.sheet_names} "
+                           f"(from {url}); top rows={raw.head(10).values.tolist()}")
+    maturities = [float(v) for v in raw.iloc[header_row, 1:] if isinstance(v, (int, float)) and not pd.isna(v)]
+    if not any(abs(v - 30) < 1e-6 for v in maturities):
+        raise RuntimeError(f"'years:' header row {header_row} in sheet {sheet!r} has no 30y column; "
+                           f"maturities found: {maturities}")
     df = xl.parse(sheet, header=header_row, index_col=0)
     col30 = next((c for c in df.columns if str(c).strip() in ("30", "30.0", "30.00")), None)
     if col30 is None:
