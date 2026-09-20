@@ -167,23 +167,50 @@ def boe(codes, start="2023-01-01"):
 def boe_gilt_30y():
     """UK 30y nominal par gilt yield. BOE_SERIES's legacy IADB series only goes out to
     20y ('long') - there's no equivalent single-series code for 30y there. Pulled
-    instead from BoE's published daily nominal yield curve workbook, which reports a
-    full curve including 30y. The exact sheet/column layout hasn't been seen live, so
-    on any parsing miss this raises with enough of the workbook's structure (sheet
-    names, header row candidates) to fix precisely rather than guess again blind."""
+    instead from BoE's published nominal yield curve workbook, linked from the
+    yield-curves statistics page rather than a guessed static filename (that guess
+    didn't return valid Excel data on the first live attempt). Every miss raises with
+    enough real detail - the page's actual links, or the workbook's actual sheet/
+    header structure - to fix precisely on the next round instead of guessing blind."""
     if DEMO:
         return demo_series("boe:gilt30")
-    url = "https://www.bankofengland.co.uk/-/media/boe/files/statistics/yield-curves/glcnominalddata.xlsx"
-    content = http_get(url).content
-    xl = pd.ExcelFile(BytesIO(content))
+    page = http_get("https://www.bankofengland.co.uk/statistics/yield-curves").text
+    links = re.findall(r'href="([^"]+\.(?:xlsx|zip))"', page, re.I)
+    candidates = [l for l in links if re.search(r"nominal|glc", l, re.I)] or links
+    if not candidates:
+        raise RuntimeError(f"no .xlsx/.zip links found on the yield-curves page "
+                           f"(page length {len(page)} chars)")
+    url = candidates[0]
+    if not url.startswith("http"):
+        url = f"https://www.bankofengland.co.uk{url}"
+    r = http_get(url)
+    content = r.content
+    if content[:2] == b"PK":  # zip container - either a real .xlsx, or a zip of files
+        try:
+            xl = pd.ExcelFile(BytesIO(content))
+        except Exception:  # noqa: BLE001 - a zip archive containing separate files, not one workbook
+            import zipfile
+            with zipfile.ZipFile(BytesIO(content)) as z:
+                names = z.namelist()
+                member = next((n for n in names if re.search(r"nominal", n, re.I)
+                              and n.lower().endswith((".xlsx", ".csv"))), None)
+                if member is None:
+                    raise RuntimeError(f"downloaded {url}, but it's a zip with no nominal "
+                                       f"xlsx/csv member; contents={names[:20]}")
+                content = z.read(member)
+                xl = pd.ExcelFile(BytesIO(content))
+    else:
+        snippet = re.sub(r"\s+", " ", content[:300].decode("utf-8", "replace"))
+        raise RuntimeError(f"{url} (from candidates {candidates[:5]}) is not a zip/xlsx "
+                           f"(status {r.status_code}, first bytes {content[:8]!r}, body {snippet!r})")
     sheet = next((s for s in xl.sheet_names if "spot" in s.lower() or "curve" in s.lower()),
                 xl.sheet_names[0])
     raw = xl.parse(sheet, header=None)
     header_row = next((i for i in range(min(10, len(raw)))
                        if any(str(v).strip() in ("30", "30.0", "30.00") for v in raw.iloc[i])), None)
     if header_row is None:
-        raise RuntimeError(f"no 30y header found in sheet {sheet!r} of {xl.sheet_names}; "
-                           f"top rows={raw.head(6).values.tolist()}")
+        raise RuntimeError(f"no 30y header found in sheet {sheet!r} of {xl.sheet_names} "
+                           f"(from {url}); top rows={raw.head(6).values.tolist()}")
     df = xl.parse(sheet, header=header_row, index_col=0)
     col30 = next((c for c in df.columns if str(c).strip() in ("30", "30.0", "30.00")), None)
     if col30 is None:
