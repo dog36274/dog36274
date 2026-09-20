@@ -13,6 +13,7 @@ Usage:
 import argparse
 import json
 import os
+import re
 import sys
 import time
 import zlib
@@ -260,10 +261,13 @@ def scrape_dmo():
         return {"gilts_in_issue_gbp_bn": 2500.0, "remit_gbp_bn": 300.0, "source": "demo"}
     out, notes = {"source": "DMO (scraped)"}, []
     try:
-        r = http_get("https://www.dmo.gov.uk/data/ExportReport", params={"reportCode": "D1A"})
+        r = http_get("https://www.dmo.gov.uk/data/ExportReport", params={"reportCode": "D1A"},
+                    headers={"Referer": "https://www.dmo.gov.uk/data/gilt-market/gilts-in-issue/"})
         try:
+            if b"<html" not in r.content[:200].lower():
+                raise RuntimeError("not-html")  # skip read_html's own noisy failure path
             tables = pd.read_html(StringIO(r.text))
-        except Exception:  # noqa: BLE001 - not HTML, try Excel
+        except Exception:  # noqa: BLE001 - not HTML (or no tables in it), try Excel
             # Sniff the real format from magic bytes rather than guessing an engine:
             # xlrd 2.0+ only reads legacy .xls (OLE2), openpyxl only reads .xlsx (zip).
             if r.content[:4] == b"PK\x03\x04":
@@ -271,7 +275,9 @@ def scrape_dmo():
             elif r.content[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1":
                 engine = "xlrd"
             else:
-                raise RuntimeError(f"unrecognised export format (first bytes {r.content[:8]!r})")
+                snippet = re.sub(r"\s+", " ", r.text)[:300] if hasattr(r, "text") else ""
+                raise RuntimeError(f"unrecognised export format (status {r.status_code}, "
+                                   f"first bytes {r.content[:8]!r}, body {snippet!r})")
             tables = list(pd.read_excel(BytesIO(r.content), sheet_name=None, header=None, engine=engine).values())
         best = None
         for t in tables:
@@ -285,14 +291,21 @@ def scrape_dmo():
     except Exception as e:  # noqa: BLE001
         notes.append(f"gilts in issue: {e}")
     try:
-        import re
         import pdfplumber
         pdf = http_get("https://www.dmo.gov.uk/dmo_static_reports/currentremit.pdf").content
         candidates = []  # (value_gbp_bn, source_description)
         with pdfplumber.open(BytesIO(pdf)) as f:
             pages = f.pages[:8]
             text = "\n".join((pg.extract_text() or "") for pg in pages)
-            # 1) prose statement of the headline figure - wording varies by year
+            # 1) "Total planned gilt sales" row of the sales-progress table: the DMO breaks
+            #    this row out by gilt type (short/medium/long/index-linked) then a grand
+            #    total as the last figure, e.g. "...102,680 81,751 22,768 24,250 246,200"
+            #    (confirmed against a live remit PDF - the grand total lands here).
+            g = re.search(r"Total\s+planned\s+gilt\s+sales\s+((?:[\d,]+\s+){1,6}[\d,]+)", text, re.I)
+            if g:
+                nums = [float(n.replace(",", "")) for n in g.group(1).split()]
+                candidates.append((nums[-1] / 1000, "text row 'Total planned gilt sales'"))
+            # 2) prose statement of the headline figure - wording varies by year
             #    ("gross financing requirement of £X billion", "gilt sales ... of £X billion", ...)
             patterns = [
                 r"gross\s+(?:financing\s+requirement|gilt\s+(?:sales|issuance))[^\n]{0,80}?"
@@ -306,7 +319,7 @@ def scrape_dmo():
                 if g:
                     v = float(g.group(1).replace(",", ""))
                     candidates.append((v / 1000 if v > 5_000 else v, f"text pattern {pat[:30]!r}"))
-            # 2) summary-table row: a "Total" row/column in a gilt-sales table (figures in £m)
+            # 3) summary-table row: a "Total" row/column in a gilt-sales table (figures in £m)
             for pg in pages:
                 for tbl in (pg.extract_tables() or []):
                     for row in tbl:
