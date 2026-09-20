@@ -200,15 +200,66 @@ function drawUS(el) {
   lineChart(el.querySelector('#c-curve'), [{label: '2s10s', pairs: d.series.curve_2s10s_bp, color: '--s1'}], {dec: 0, unit: 'bp'});
   if (d.series.cpi_yoy) lineChart(el.querySelector('#c-cpi'), [{label: 'CPI YoY', pairs: d.series.cpi_yoy, color: '--s1'}], {unit: '%'});
 }
+/* Gold vs inverted 10Y real yield: dual-axis by deliberate choice (not the usual single-
+   axis rule) - the two series live on different units but have a well-known inverse
+   macro relationship, and a shared, inverted secondary axis is the standard way this
+   specific comparison is charted. Each axis auto-fits to its own filtered series (via
+   `grace`), so the two lines span a comparable share of the chart height regardless of
+   their absolute units. */
+const GOLD_HORIZONS = [['1M', '1m'], ['3M', '3m'], ['6M', '6m'], ['1Y', '1y'], ['YTD', 'ytd']];
+let goldHorizon = '1y', goldChart = null;
+function filterHorizon(pairs, key) {
+  if (!pairs || !pairs.length) return [];
+  const last = new Date(pairs[pairs.length - 1][0]);
+  let from;
+  if (key === 'ytd') { from = new Date(Date.UTC(last.getUTCFullYear(), 0, 1)); }
+  else { from = new Date(last); from.setUTCMonth(from.getUTCMonth() - {'1m': 1, '3m': 3, '6m': 6, '1y': 12}[key]); }
+  return pairs.filter(p => new Date(p[0]) >= from);
+}
+function drawGoldRealChart(canvas, d) {
+  if (goldChart) { const i = charts.indexOf(goldChart); if (i >= 0) charts.splice(i, 1); goldChart.destroy(); }
+  const gold = filterHorizon(d.series.gold, goldHorizon), real = filterHorizon(d.series.real10, goldHorizon);
+  const labels = [...new Set([...gold, ...real].map(p => p[0]))].sort();
+  const gm = new Map(gold), rm = new Map(real);
+  goldChart = new Chart(canvas, { type: 'line', plugins: [crosshair],
+    data: { labels, datasets: [
+      { label: 'Gold (USD/oz)', data: labels.map(l => gm.has(l) ? gm.get(l) : null), yAxisID: 'y',
+        borderColor: css('--s1'), backgroundColor: css('--s1'), borderWidth: 2, pointRadius: 0, pointHoverRadius: 4,
+        pointHoverBorderWidth: 2, pointHoverBorderColor: css('--surface'), tension: 0, spanGaps: true },
+      { label: '10Y real yield (inverted)', data: labels.map(l => rm.has(l) ? rm.get(l) : null), yAxisID: 'y1',
+        borderColor: css('--s2'), backgroundColor: css('--s2'), borderWidth: 2, pointRadius: 0, pointHoverRadius: 4,
+        pointHoverBorderWidth: 2, pointHoverBorderColor: css('--surface'), tension: 0, spanGaps: true } ] },
+    options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: { ticks: { maxTicksLimit: 6, maxRotation: 0, color: css('--text-3'), font: {size: 10} }, grid: { display: false }, border: { color: css('--grid') } },
+        y: { position: 'left', grace: '10%', ticks: { color: css('--s1'), font: {size: 10}, callback: v => '$' + fmt(v, 0) },
+             grid: { color: css('--grid') }, border: { display: false } },
+        y1: { position: 'right', reverse: true, grace: '10%', ticks: { color: css('--s2'), font: {size: 10}, callback: v => fmt(v, 2) + '%' },
+             grid: { display: false }, border: { display: false } } },
+      plugins: { legend: { position: 'bottom', labels: { color: css('--text-2'), boxWidth: 10, boxHeight: 3, font: {size: 11} } },
+        tooltip: { callbacks: { label: c => c.dataset.yAxisID === 'y' ? ` Gold: $${fmt(c.parsed.y, 0)}` : ` Real yield: ${fmt(c.parsed.y, 2)}%` } } } } });
+  charts.push(goldChart);
+}
 function drawGold(el) {
   const d = D.gold_real_yields; if (!d) return missing(el);
   const L = d.latest, w = d.wgc, q = w?.quarters || [];
   el.innerHTML = `<div class="tiles">${tile('Gold (XAU/USD)', '$' + fmt(first(L.gold), 0), asOf(L.gold))}${tile('10Y TIPS real yield', fmt(first(L.real10)) + '%', asOf(L.real10))}</div>
-    <div class="charts">${chartBox('Gold spot (USD/oz)', 'c-gold')}${chartBox('10Y TIPS real yield (%)', 'c-real')}
+    <div class="chart">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px">
+        <h3 style="margin:0">Gold vs 10Y real yield (inverted, secondary axis)</h3>
+        <div class="toolbar" id="gold-hz" style="margin:0"></div>
+      </div>
+      <div class="box"><canvas id="c-gold-real" role="img" aria-label="Gold vs 10Y real yield, inverted"></canvas></div>
+    </div>
+    <div class="charts">
     <div class="chart"><h3>Central bank net gold purchases (tonnes, WGC, quarterly)</h3>${q.length ? '<div class="box"><canvas id="c-wgc"></canvas></div>'
       : '<div class="empty">No data yet. Add quarters to data/wgc_manual.json when Gold Demand Trends is published.</div>'}</div></div>${warnHtml(d)}`;
-  lineChart(el.querySelector('#c-gold'), [{label: 'Gold', pairs: d.series.gold, color: '--s1'}], {dec: 0});
-  lineChart(el.querySelector('#c-real'), [{label: 'Real yield', pairs: d.series.real10, color: '--s2'}], {unit: '%'});
+  const hzEl = el.querySelector('#gold-hz');
+  GOLD_HORIZONS.forEach(([lbl, key]) => { const b = $(`<button aria-pressed="${key === goldHorizon}">${lbl}</button>`);
+    b.onclick = () => { goldHorizon = key; hzEl.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
+      drawGoldRealChart(el.querySelector('#c-gold-real'), d); };
+    hzEl.appendChild(b); });
+  drawGoldRealChart(el.querySelector('#c-gold-real'), d);
   if (q.length) charts.push(new Chart(el.querySelector('#c-wgc'), { type: 'bar', data: { labels: q.map(x => x.quarter), datasets: [{ label: 'Tonnes', data: q.map(x => x.net_purchases_tonnes), backgroundColor: css('--s1'), borderRadius: 3 }] },
     options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false } },
       scales: { x: { grid: { display: false }, ticks: { color: css('--text-3'), font: {size: 10} } }, y: { grid: { color: css('--grid') }, border: { display: false }, ticks: { color: css('--text-3'), font: {size: 10} } } } } }));
@@ -271,6 +322,7 @@ const PANELS = [['korea_fx', 'Korea FX', 'USD/KRW and the Bank of Korea', drawKo
 
 function render() {
   charts.splice(0).forEach(c => c.destroy());
+  goldChart = null;
   const host = document.getElementById('panels'); host.innerHTML = '';
   drawPositions();
   for (const [key, title, blurb, fn] of PANELS) { const el = panelShell(key, title, blurb); host.appendChild(el); fn(el.querySelector('.body')); }
