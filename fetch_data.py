@@ -17,7 +17,7 @@ import sys
 import time
 import zlib
 from datetime import date, datetime, timezone
-from io import StringIO
+from io import BytesIO, StringIO
 from pathlib import Path
 
 import numpy as np
@@ -78,9 +78,20 @@ def stooq(symbol):
     params = {"s": symbol, "i": "d"}
     if os.getenv("STOOQ_API_KEY"):
         params["apikey"] = os.environ["STOOQ_API_KEY"]
-    text = http_get("https://stooq.com/q/d/l/", params=params).text
-    if not text.lstrip().startswith("Date,"):
-        raise RuntimeError(f"Stooq {symbol}: unexpected response: {text[:80]!r}")
+    headers = {"Referer": "https://stooq.com/", "Accept": "text/csv,text/plain,*/*"}
+    text = None
+    last_err = None
+    for host in ("stooq.com", "stooq.pl"):  # .com occasionally serves an
+        try:                                # interstitial page; .pl mirrors the same data
+            text = http_get(f"https://{host}/q/d/l/", params=params, headers=headers).text
+            if text.lstrip().startswith("Date,"):
+                break
+            last_err = f"unexpected response: {text[:200]!r}"
+            text = None
+        except Exception as e:  # noqa: BLE001
+            last_err = str(e)
+    if text is None:
+        raise RuntimeError(f"Stooq {symbol}: {last_err}")
     df = pd.read_csv(StringIO(text), parse_dates=["Date"]).dropna(subset=["Close"])
     return df.set_index("Date")["Close"].astype(float).sort_index()
 
@@ -98,7 +109,8 @@ def fred(series_id, start="2023-01-01"):
         rows = [(o["date"], float(o["value"])) for o in j["observations"] if o["value"] not in (".", "")]
         return pd.Series([v for _, v in rows], index=pd.to_datetime([d for d, _ in rows]), name=series_id)
     text = http_get("https://fred.stlouisfed.org/graph/fredgraph.csv",
-                    params={"id": series_id, "cosd": start}).text
+                    params={"id": series_id, "cosd": start},
+                    headers={"Accept": "text/csv,text/plain,*/*"}, timeout=60).text
     df = pd.read_csv(StringIO(text))
     if df.shape[1] < 2:
         raise RuntimeError(f"FRED csv {series_id}: unexpected response: {text[:80]!r}")
@@ -252,7 +264,7 @@ def scrape_dmo():
         try:
             tables = pd.read_html(StringIO(r.text))
         except Exception:  # noqa: BLE001 - not HTML, try Excel
-            tables = list(pd.read_excel(r.content, sheet_name=None, header=None).values())
+            tables = list(pd.read_excel(BytesIO(r.content), sheet_name=None, header=None).values())
         best = None
         for t in tables:
             for row in t.astype(str).values.tolist():
@@ -265,20 +277,34 @@ def scrape_dmo():
     except Exception as e:  # noqa: BLE001
         notes.append(f"gilts in issue: {e}")
     try:
-        import io, re
+        import re
         import pdfplumber
         pdf = http_get("https://www.dmo.gov.uk/dmo_static_reports/currentremit.pdf").content
-        with pdfplumber.open(io.BytesIO(pdf)) as f:
-            text = "\n".join((pg.extract_text() or "") for pg in f.pages[:3])
+        with pdfplumber.open(BytesIO(pdf)) as f:
+            text = "\n".join((pg.extract_text() or "") for pg in f.pages[:5])
         m = re.search(r"(20\d\d-\d\d)", text)
-        g = re.search(r"(?:gross|total)[^\n]{0,60}?(?:£|GBP)?\s?([\d,]+\.?\d*)\s?(?:billion|bn|m)", text, re.I)
-        val = float(g.group(1).replace(",", "")) if g else None
+        # DMO remit wording varies by year ("gross financing requirement of £X billion",
+        # "gilt sales in 2025-26 are planned to be £X billion", "gross gilt issuance of £Xbn", ...).
+        # Try progressively looser patterns until one lands in the plausible range.
+        patterns = [
+            r"gross\s+(?:financing\s+requirement|gilt\s+(?:sales|issuance))[^\n]{0,80}?"
+            r"(?:£|GBP)\s?([\d,]+\.?\d*)\s?(?:billion|bn)\b",
+            r"(?:£|GBP)\s?([\d,]+\.?\d*)\s?(?:billion|bn)[^\n]{0,60}?gross\s+gilt",
+            r"(?:gross|total)[^\n]{0,60}?(?:£|GBP)?\s?([\d,]+\.?\d*)\s?(?:billion|bn|m)\b",
+        ]
+        val = None
+        for pat in patterns:
+            g = re.search(pat, text, re.I)
+            if g:
+                val = float(g.group(1).replace(",", ""))
+                break
         if val and val > 5_000:
             val /= 1000                                # was in GBP m
         if val and 100 <= val <= 500:
             out["remit_gbp_bn"], out["remit_fiscal_year"] = round(val, 1), (m.group(1) if m else None)
         else:
-            notes.append(f"remit: no plausible gross figure found (got {val})")
+            snippet = re.sub(r"\s+", " ", text)[:200]
+            notes.append(f"remit: no plausible gross figure found (got {val}); text starts {snippet!r}")
     except Exception as e:  # noqa: BLE001
         notes.append(f"remit: {e}")
     out["scrape_notes"] = notes

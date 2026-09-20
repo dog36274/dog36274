@@ -27,7 +27,14 @@ jobs:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}   # optional
           BOK_API_KEY: ${{ secrets.BOK_API_KEY }}
           STOOQ_API_KEY: ${{ secrets.STOOQ_API_KEY }}   # optional
-        run: python fetch_data.py && python build_single.py
+        run: |
+          # fetch_data.py exits 1 if any panel failed outright, but per-panel
+          # JSON files are still updated for whatever succeeded (failures keep
+          # the previous file). Always run build_single.py so the-desk.html
+          # reflects that, then surface the fetch failure to the job status.
+          python fetch_data.py; fetch_status=$?
+          python build_single.py
+          exit $fetch_status
 
       - name: Commit updated data
         if: always()   # still commit whatever panels did update, even if one failed
