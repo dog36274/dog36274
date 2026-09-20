@@ -1,43 +1,44 @@
 {
- "last_run": "2026-09-20T21:44:36+00:00",
+ "last_run": "2026-09-20T21:58:13+00:00",
  "demo": false,
  "all_ok": true,
  "panels": {
   "korea_fx": {
    "ok": true,
-   "updated": "2026-09-20T21:44:36+00:00",
+   "updated": "2026-09-20T21:58:13+00:00",
    "warnings": [
-    "BoK base rate: BOK_API_KEY not set"
+    "BoK base rate: BOK_API_KEY not set",
+    "KRX foreign net buy: KRX: page fetched (status 200, 377 chars) but the OTP-download flow isn't built yet; bld candidates found on the page=[]"
    ]
   },
   "us_rates": {
    "ok": true,
-   "updated": "2026-09-20T21:44:36+00:00",
+   "updated": "2026-09-20T21:58:13+00:00",
    "warnings": []
   },
   "gold_real_yields": {
    "ok": true,
-   "updated": "2026-09-20T21:44:36+00:00",
+   "updated": "2026-09-20T21:58:13+00:00",
    "warnings": [
     "WGC demand: GET https://www.gold.org/goldhub/research/gold-demand-trends failed: 503 Server Error: Service Unavailable for url: https://www.gold.org/goldhub/research/gold-demand-trends"
    ]
   },
   "frontier": {
    "ok": true,
-   "updated": "2026-09-20T21:44:36+00:00",
+   "updated": "2026-09-20T21:58:13+00:00",
    "warnings": []
   },
   "nok_oil": {
    "ok": true,
-   "updated": "2026-09-20T21:44:36+00:00",
+   "updated": "2026-09-20T21:58:13+00:00",
    "warnings": []
   },
   "uk_gilts": {
    "ok": true,
-   "updated": "2026-09-20T21:44:36+00:00",
+   "updated": "2026-09-20T21:58:13+00:00",
    "warnings": [
     "BoE 30Y gilt: 'years:' header row 3 in sheet '4. nominal spot curve' has no 30y column; maturities found: [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5, 10.0, 10.5, 11.0, 11.5, 12.0, 12.5, 13.0, 13.5, 14.0, 14.5, 15.0, 15.5, 16.0, 16.5, 17.0, 17.5, 18.0, 18.5, 19.0, 19.5, 20.0, 20.5, 21.0, 21.5, 22.0, 22.5, 23.0, 23.5, 24.0, 24.5, 25.0]",
-    "DMO gilts in issue: unrecognised export format (status 200); scripts=[]; export-string candidates=[]; body '<head><title>ShieldSquare Block</title><script type=\"text/javascript\"> window.SSJSInternal = 18155; var __uzdbm_1 = \"d86faade-9f5f-4846-a0a4-10c8045ef07b\"; var __uzdbm_2 = \"OGY1Mzk4MWItYmhiei00NjVhLWF'; export-script snippets={}",
+    "DMO gilts in issue: unrecognised export format (status 200); scripts=[]; export-string candidates=[]; body '<head><title>ShieldSquare Block</title><script type=\"text/javascript\"> window.SSJSInternal = 18155; var __uzdbm_1 = \"4fc9fd53-59c0-4d18-af02-f197194c4372\"; var __uzdbm_2 = \"MDllMjAwZTQtYmhiei00NmI0LTh'; export-script snippets={}",
     "ONS central_govt_interest: CDID not configured",
     "ONS net_social_benefits: CDID not configured"
    ]
@@ -90,9 +91,9 @@
    "emb": 93.37999725341797,
    "corr60": -0.8547381854896253,
    "ust30": 5.29,
-   "nok_eur": 0.09254152593754937,
+   "nok_eur": 0.09253381673931464,
    "oil_brent": 99.29000091552734,
-   "nok_oil_corr60": 0.37687094720728775
+   "nok_oil_corr60": 0.37691473165886635
   }
  },
  "streak": 1,
