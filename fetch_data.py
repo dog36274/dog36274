@@ -657,19 +657,23 @@ def scrape_krx_foreign_net_buy():
 
 def fomc_dot_plot():
     """Best-effort scrape of the FOMC's quarterly Summary of Economic Projections
-    (SEP) - the median federal funds rate "dot plot" path, published four times a
-    year (Mar/Jun/Sep/Dec) on federalreserve.gov. Only the median per projection
-    year is scraped; the full anonymized scatter of every individual participant's
-    dot is published solely in the SEP PDF's appendix table, not as structured
-    HTML/CSV data, so it isn't available to a scraper like this one. Finds the
-    current release by scanning the FOMC calendar page's own links rather than
-    guessing a meeting-date-stamped URL (fomcprojtabl<YYYYMMDD>.htm) that would go
-    stale every quarter. Table layout not confirmed live yet - on a miss this
-    reports the real tables found so the row lookup can be fixed precisely."""
+    (SEP) - the federal funds rate "dot plot" path, published four times a year
+    (Mar/Jun/Sep/Dec) on federalreserve.gov. Median, central tendency (middle ~70%
+    of participants, i.e. excluding the 3 highest and 3 lowest) and range (full
+    min-max across all participants) are all scraped - that's the real distribution
+    the SEP table publishes. The full anonymized scatter of every individual
+    participant's own dot is published solely in the SEP PDF's appendix table, not
+    as structured HTML/CSV data, so it isn't available to a scraper like this one.
+    Finds the current release by scanning the FOMC calendar page's own links rather
+    than guessing a meeting-date-stamped URL (fomcprojtabl<YYYYMMDD>.htm) that
+    would go stale every quarter."""
     if DEMO:
         yr = TODAY.year
-        return {"release_date": TODAY.isoformat(),
-               "median": {str(yr): 4.125, str(yr + 1): 3.625, str(yr + 2): 3.375, "longer run": 3.0}}
+        years = [str(yr), str(yr + 1), str(yr + 2), "longer run"]
+        median = {years[0]: 4.125, years[1]: 3.625, years[2]: 3.375, years[3]: 3.0}
+        return {"release_date": TODAY.isoformat(), "median": median,
+               "central_tendency": {y: [v - 0.125, v + 0.125] for y, v in median.items()},
+               "range": {y: [v - 0.375, v + 0.375] for y, v in median.items()}}
     cal = http_get("https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm")
     matches = re.findall(r'href="(/monetarypolicy/fomcprojtabl(\d{8})\.htm)"', cal.text, re.I)
     if not matches:
@@ -694,20 +698,31 @@ def fomc_dot_plot():
         rows = [[c.text_content().strip() for c in tr.xpath("./td | ./th")]
                for tr in table_el.xpath(".//tr")]
         tables.append([row for row in rows if row])
-    # Confirmed live (see the diagnostic this raised before this fix): there's no
-    # separate "Median" sub-row - the row labeled exactly "Federal funds rate" has
-    # the 5 median values directly after the label, followed by 10 more cells that
-    # are central-tendency/range strings like "4.1-4.4" (not single numbers, so
-    # _numbers() - which only keeps cells that parse as a bare float - already
-    # drops them without any extra filtering).
+    # Confirmed live: there's no separate "Median" sub-row - the row labeled
+    # exactly "Federal funds rate" has, after the label, 3 equal-length blocks in
+    # this order: median (bare numbers, e.g. "4.1"), central tendency (ranges,
+    # e.g. "4.1-4.4"), then range (ranges again, wider). Block length = however
+    # many projection years this release covers (year-by-year plus "longer run").
+    range_re = re.compile(r"(-?[\d.]+)\s*[–—-]\s*(-?[\d.]+)")
     for rows in tables:
         for row in rows:
             if row and row[0].strip().lower() == "federal funds rate":
-                nums = _numbers(row[1:])
-                if nums:
-                    years = [str(TODAY.year + k) for k in range(len(nums) - 1)] + ["longer run"]
+                vals = row[1:]
+                nums = _numbers(vals)
+                n = len(nums)
+                if nums and len(vals) >= n * 3:
+                    years = [str(TODAY.year + k) for k in range(n - 1)] + ["longer run"]
+                    def block(cells):
+                        out = {}
+                        for y, c in zip(years, cells):
+                            m = range_re.search(c)
+                            if m:
+                                out[y] = [float(m.group(1)), float(m.group(2))]
+                        return out
                     return {"release_date": TODAY.isoformat(), "source_url": url,
-                           "median": dict(zip(years, nums))}
+                           "median": dict(zip(years, nums)),
+                           "central_tendency": block(vals[n:2 * n]),
+                           "range": block(vals[2 * n:3 * n])}
     # Nothing matched a "Federal funds rate" row with parseable numbers - show
     # the actual content of whichever tables mention "federal" at all, rather than
     # just row counts, so the real row/column layout is visible for the next fix.
@@ -771,6 +786,19 @@ def panel_us():
         s = p.optional(label, lambda sid=series_id: fred(sid, start="2020-01-01"))
         if s is None:
             continue
+        if key == "cpi_yoy":
+            # Temporary: user is seeing 3.4% in news headlines, we compute 3.69% -
+            # dump the raw index tail so the exact month-by-month arithmetic behind
+            # our number is checkable (gap in the series, wrong vintage, off-by-one
+            # month, etc. would all show up here). Remove once resolved.
+            tail = s.tail(14)
+            p.warnings.append("DEBUG CPIAUCNS raw tail: " +
+                              "; ".join(f"{d:%Y-%m}={v:.3f}" for d, v in tail.items()))
+            if len(s) > 12:
+                base = s.iloc[-13]
+                p.warnings.append(f"DEBUG YoY calc: latest={s.iloc[-1]:.3f} ({s.index[-1]:%Y-%m}) "
+                                  f"vs 12mo-ago={base:.3f} ({s.index[-13]:%Y-%m}) -> "
+                                  f"{(s.iloc[-1] / base - 1) * 100:.3f}%")
         yoy = (s.pct_change(12) * 100).dropna()
         if not len(yoy):
             continue

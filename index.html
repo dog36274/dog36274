@@ -200,6 +200,30 @@ function addRefLines(ch, lines) {   // dashed horizontal reference lines (entry 
       g.setLineDash([]); g.fillStyle = css('--text-2'); g.font = '10px system-ui'; g.fillText(`${t} ${fmt(v, 0)}`, left + 4, y - 3); g.restore(); }); } });
   ch.update('none');
 }
+function fomcRangePlugin(dp) {
+  // Draws the real SEP distribution behind the median dots: a thin bar for the
+  // full range (min-max across all participants) and a bolder bar for the
+  // central tendency (middle ~70%, i.e. excluding the 3 highest and 3 lowest).
+  // This is the closest thing to "the distribution" available without the raw
+  // per-participant dots, which the Fed only publishes inside the SEP PDF's
+  // appendix, not as structured/scrapable data.
+  return { id: 'fomcRange' + Math.random(), beforeDatasetsDraw(c) {
+    if (!dp) return;
+    const g = c.ctx, ys = c.scales.y, xs = c.scales.x;
+    Object.keys(dp.median).forEach(yr => {
+      if (yr === 'longer run') return;
+      const x = xs.getPixelForValue(`${yr}-12-31`);
+      if (x == null || Number.isNaN(x)) return;
+      const rng = dp.range?.[yr], ct = dp.central_tendency?.[yr];
+      g.save();
+      if (rng) { g.strokeStyle = css('--s2'); g.globalAlpha = 0.3; g.lineWidth = 3; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(x, ys.getPixelForValue(rng[0])); g.lineTo(x, ys.getPixelForValue(rng[1])); g.stroke(); }
+      if (ct) { g.strokeStyle = css('--s2'); g.globalAlpha = 0.6; g.lineWidth = 8; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(x, ys.getPixelForValue(ct[0])); g.lineTo(x, ys.getPixelForValue(ct[1])); g.stroke(); }
+      g.restore();
+    });
+  }};
+}
 function drawFedDotChart(canvas, d) {
   // The x-axis here is categorical (evenly-spaced by index, not real calendar
   // time - Chart.js needs a date adapter for a true time scale, not loaded in
@@ -211,28 +235,48 @@ function drawFedDotChart(canvas, d) {
   const histFull = cut(d.series.dff || []);
   const hist = histFull.filter((_, i) => i % 5 === 0 || i === histFull.length - 1);
   const dp = d.dot_plot;
-  const dots = dp ? Object.entries(dp.median).filter(([y]) => y !== 'longer run').map(([y, v]) => [`${y}-12-31`, v]) : [];
+  const yrs = dp ? Object.keys(dp.median).filter(y => y !== 'longer run') : [];
+  const dots = yrs.map(y => [`${y}-12-31`, dp.median[y]]);
+  // Hidden (invisible) datasets carrying the range bounds so Chart.js's own
+  // auto-scaling accounts for them - the plugin above draws the actual bars,
+  // these just make sure the y-axis is tall enough to show them.
+  const rangeLow = yrs.filter(y => dp.range?.[y]).map(y => [`${y}-12-31`, dp.range[y][0]]);
+  const rangeHigh = yrs.filter(y => dp.range?.[y]).map(y => [`${y}-12-31`, dp.range[y][1]]);
   const labels = [...new Set([...hist.map(p => p[0]), ...dots.map(p => p[0])])].sort();
-  const histMap = new Map(hist), dotMap = new Map(dots);
-  const ch = new Chart(canvas, { type: 'line', plugins: [crosshair],
+  const histMap = new Map(hist), dotMap = new Map(dots), loMap = new Map(rangeLow), hiMap = new Map(rangeHigh);
+  const ch = new Chart(canvas, { type: 'line', plugins: [crosshair, fomcRangePlugin(dp)],
     data: { labels, datasets: [
       { label: 'Fed funds (effective)', data: labels.map(l => histMap.has(l) ? histMap.get(l) : null),
         borderColor: css('--s1'), backgroundColor: css('--s1'), borderWidth: 2, pointRadius: 0, pointHoverRadius: 4,
         pointHoverBorderWidth: 2, pointHoverBorderColor: css('--surface'), tension: 0, spanGaps: true, stepped: 'before' },
       { label: 'FOMC dot plot (median)', data: labels.map(l => dotMap.has(l) ? dotMap.get(l) : null),
         borderColor: css('--s2'), backgroundColor: css('--s2'), borderWidth: 0, pointRadius: 5, pointHoverRadius: 6,
-        showLine: false, spanGaps: false } ] },
+        showLine: false, spanGaps: false },
+      { label: '_rangeLow', data: labels.map(l => loMap.has(l) ? loMap.get(l) : null), pointRadius: 0, borderWidth: 0, showLine: false },
+      { label: '_rangeHigh', data: labels.map(l => hiMap.has(l) ? hiMap.get(l) : null), pointRadius: 0, borderWidth: 0, showLine: false } ] },
     options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
       scales: { x: { ticks: { maxTicksLimit: 6, maxRotation: 0, color: css('--text-3'), font: {size: 10} }, grid: { display: false }, border: { color: css('--grid') } },
                 y: { grace: '10%', ticks: { color: css('--text-3'), font: {size: 10}, callback: v => fmt(v, 2) + '%' }, grid: { color: css('--grid') }, border: { display: false } } },
-      plugins: { legend: { position: 'bottom', labels: { color: css('--text-2'), boxWidth: 10, boxHeight: 3, font: {size: 11} } },
-        tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${fmt(c.parsed.y, 2)}%` } } } } });
+      plugins: { legend: { position: 'bottom', labels: { color: css('--text-2'), boxWidth: 10, boxHeight: 3, font: {size: 11}, filter: item => !item.text.startsWith('_') } },
+        tooltip: { filter: item => !item.dataset.label.startsWith('_'),
+          callbacks: { label: c => {
+            const yr = c.label.slice(0, 4);
+            const ct = dp?.central_tendency?.[yr], rng = dp?.range?.[yr];
+            if (c.dataset.label === 'FOMC dot plot (median)' && (ct || rng)) {
+              return [` Median: ${fmt(c.parsed.y, 2)}%`,
+                ct ? ` Central tendency: ${fmt(ct[0], 2)}-${fmt(ct[1], 2)}%` : '',
+                rng ? ` Range: ${fmt(rng[0], 2)}-${fmt(rng[1], 2)}%` : ''].filter(Boolean);
+            }
+            return ` ${c.dataset.label}: ${fmt(c.parsed.y, 2)}%`;
+          } } } } } });
   charts.push(ch);
 }
 function drawUS(el) {
   const d = D.us_rates; if (!d) return missing(el);
   const L = d.latest, dp = d.dot_plot;
-  const dotCaption = dp ? `FOMC median path (${dp.release_date}): ${Object.entries(dp.median).map(([y, v]) => `${y} ${fmt(v, 2)}%`).join(' · ')}` : '';
+  const dotCaption = dp ? `FOMC median path (${dp.release_date}): ${Object.entries(dp.median).map(([y, v]) => `${y} ${fmt(v, 2)}%`).join(' · ')}. `
+    + `Dot = median; bold bar = central tendency (middle ~70% of participants); light bar = full range. `
+    + `Individual participant dots aren't published as structured data, only in the SEP PDF's appendix.` : '';
   el.innerHTML = `<div class="tiles">${tile('UST 2Y', fmt(first(L.ust2)) + '%', asOf(L.ust2))}${tile('UST 10Y', fmt(first(L.ust10)) + '%', asOf(L.ust10))}${L.ust30 ? tile('UST 30Y', fmt(first(L.ust30)) + '%', asOf(L.ust30)) : ''}
     ${tile('2s10s', fmt(L.curve_2s10s_bp, 0) + 'bp')}${L.cpi_yoy ? tile('CPI YoY', fmt(first(L.cpi_yoy)) + '%', asOf(L.cpi_yoy)) : ''}${L.core_pce_yoy ? tile('Core PCE YoY', fmt(first(L.core_pce_yoy)) + '%', asOf(L.core_pce_yoy)) : ''}</div>
     ${rateBox('Fed funds (effective)', d.fed)}
