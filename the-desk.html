@@ -216,7 +216,15 @@ function addRefLines(ch, lines) {   // dashed horizontal reference lines (entry 
   ch.update('none');
 }
 function drawFedDotChart(canvas, d) {
-  const hist = cut(d.series.dff || []);
+  // The x-axis here is categorical (evenly-spaced by index, not real calendar
+  // time - Chart.js needs a date adapter for a true time scale, not loaded in
+  // this bundle), so mixing ~250 daily history points with a handful of future
+  // dot-plot points would squash those future years together at the far edge.
+  // The effective rate barely moves between meetings anyway, so thinning history
+  // to roughly weekly loses no real information and gives the dots proportional
+  // room; the most recent point is always kept so today's value stays exact.
+  const histFull = cut(d.series.dff || []);
+  const hist = histFull.filter((_, i) => i % 5 === 0 || i === histFull.length - 1);
   const dp = d.dot_plot;
   const dots = dp ? Object.entries(dp.median).filter(([y]) => y !== 'longer run').map(([y, v]) => [`${y}-12-31`, v]) : [];
   const labels = [...new Set([...hist.map(p => p[0]), ...dots.map(p => p[0])])].sort();
