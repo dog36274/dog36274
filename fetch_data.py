@@ -694,17 +694,21 @@ def fomc_dot_plot():
         rows = [[c.text_content().strip() for c in tr.xpath("./td | ./th")]
                for tr in table_el.xpath(".//tr")]
         tables.append([row for row in rows if row])
+    # Confirmed live (see the diagnostic this raised before this fix): there's no
+    # separate "Median" sub-row - the row labeled exactly "Federal funds rate" has
+    # the 5 median values directly after the label, followed by 10 more cells that
+    # are central-tendency/range strings like "4.1-4.4" (not single numbers, so
+    # _numbers() - which only keeps cells that parse as a bare float - already
+    # drops them without any extra filtering).
     for rows in tables:
-        for i, row in enumerate(rows):
-            if any("federal funds rate" in c.lower() for c in row):
-                for j in range(i, min(i + 5, len(rows))):
-                    if rows[j] and rows[j][0].strip().lower().startswith("median"):
-                        nums = _numbers(rows[j][1:])
-                        if nums:
-                            years = [str(TODAY.year + k) for k in range(len(nums) - 1)] + ["longer run"]
-                            return {"release_date": TODAY.isoformat(), "source_url": url,
-                                   "median": dict(zip(years, nums))}
-    # Nothing matched the exact "Federal funds rate" -> "Median" adjacency - show
+        for row in rows:
+            if row and row[0].strip().lower() == "federal funds rate":
+                nums = _numbers(row[1:])
+                if nums:
+                    years = [str(TODAY.year + k) for k in range(len(nums) - 1)] + ["longer run"]
+                    return {"release_date": TODAY.isoformat(), "source_url": url,
+                           "median": dict(zip(years, nums))}
+    # Nothing matched a "Federal funds rate" row with parseable numbers - show
     # the actual content of whichever tables mention "federal" at all, rather than
     # just row counts, so the real row/column layout is visible for the next fix.
     candidates = [{"table": ti, "rows": rows[:20]} for ti, rows in enumerate(tables)
