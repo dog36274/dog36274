@@ -1,57 +1,57 @@
 {
- "last_run": "2026-09-21T12:43:00+00:00",
+ "last_run": "2026-09-21T12:44:58+00:00",
  "demo": false,
  "all_ok": true,
  "panels": {
   "korea_fx": {
    "ok": true,
-   "updated": "2026-09-21T12:43:00+00:00",
+   "updated": "2026-09-21T12:44:58+00:00",
    "warnings": [
     "BoK base rate: BOK_API_KEY not set",
-    "KRX foreign net buy: KRX: page too small for real content (status 200, 377 chars, body=\"<!DOCTYPE html>\\n<html>\\n<head>\\n<title></title>\\n</head>\\n<body>\\n<script type='text/javascript'>\\nalert('\ub85c\uadf8\uc778 \ub610\ub294 \ud68c\uc6d0\uac00\uc785\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.');\\nlocation.href='/contents/MDC/COMS/client/MDCCOMS001.cmd?locale=ko_KR&redirectURL=b2h0aEZNWThrQ2s4amxkQjNPS3pLdmxteXFTdGFHRElNWlh0c2pYbU4rRnRVSml4MXpWeWwrZUpBVUlJUmlERWl1TVZJdWZNd0NwZHRpQWdjdkFQTGJNbzBOUXpvSGZJS1pYdStISWJrczg9';\\n</script>\\n</body>\\n</html>\\n\"); scripts found=[]; bld candidates from those scripts={}"
+    "KRX foreign net buy: KRX: page too small for real content (status 200, 377 chars, body=\"<!DOCTYPE html>\\n<html>\\n<head>\\n<title></title>\\n</head>\\n<body>\\n<script type='text/javascript'>\\nalert('\ub85c\uadf8\uc778 \ub610\ub294 \ud68c\uc6d0\uac00\uc785\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.');\\nlocation.href='/contents/MDC/COMS/client/MDCCOMS001.cmd?locale=ko_KR&redirectURL=b2h0aEZNWThrQ2s4amxkQjNPS3pLdmxteXFTdGFHRElNWlh0c2pYbU4rRnRVSml4MXpWeWwrZUpBVUlJUmlERWl1TVZJdWZNd0NwZHRpQWdjdkFQTGZNVUtjMVVxUlpQRFNMUFo2N2hrNXM9';\\n</script>\\n</body>\\n</html>\\n\"); scripts found=[]; bld candidates from those scripts={}"
    ]
   },
   "us_rates": {
    "ok": true,
-   "updated": "2026-09-21T12:43:00+00:00",
+   "updated": "2026-09-21T12:44:58+00:00",
    "warnings": [
-    "FOMC dot plot: 'float' object has no attribute 'lower'"
+    "FOMC dot plot: FOMC SEP https://www.federalreserve.gov/monetarypolicy/fomcprojtabl20260916.htm: fetched 26 tables, none matched the exact 'Federal funds rate' -> 'Median' row pattern; tables mentioning 'federal' anywhere (1 of them): [{'table': 0, 'rows': [['Variable', 'Median1', 'Central Tendency2', 'Range3'], ['2026', '2027', '2028', '2029', 'Longer run', '2026', '2027', '2028', '2029', 'Longer run', '2026', '2027', '2028', '2029', 'Longer run'], ['Change in real GDP', '2.3', '2.4', '2.2', '2.1', '2.0', '2.2\u20132.4', '2.2\u20132.6', '2.1\u20132.3', '2.0\u20132.2', '2.0\u20132.2', '2.1\u20132.6', '2.0\u20132.9', '1.8\u20132.6', '1.8\u20132.4', '1.7\u20132.5'], ['June projection', '2.2', '2.3', '2.2', '', '2.0', '2.0\u20132.3', '2.0\u20132.4', '2.0\u20132.3', '', '1.8\u20132.0', '1.8\u20132.6', '1.9\u20132.9', '1.8\u20132.6', '', '1.7\u20132.5'], ['Unemployment rate', '4.1', '4.1', '4.1', '4.1', '4.2', '4.1\u20134.2', '4.0\u20134.2', '4.0\u20134.2', '4.0\u20134.3', '4.0\u20134.3', '4.0\u20134.3', '4.0\u20134.5', '3.9\u20134.4', '3.8\u20134.4', '3.8\u20134.4'], ['June projection', '4.3', '4.3', '4.2', '', '4.2', '4.3\u20134.4', '4.2\u20134.5', '4.1\u20134.3', '', '4.0\u20134.3', '4.3\u20134.6', '4.0\u20134.6', '4.0\u20134.4', '', '3.8\u20134.5'], ['PCE inflation', '3.7', '2.3', '2.1', '2.0', '2.0', '3.5\u20133.7', '2.2\u20132.5', '2.0\u20132.2', '2.0', '2.0', '2.9\u20133.8', '2.0\u20132.6', '2.0\u20132.2', '2.0', '2.0'], ['June projection', '3.6', '2.3', '2.0', '', '2.0', '3.5\u20133.7', '2.2\u20132.5', '2.0\u20132.1', '', '2.0', '2.7\u20134.1', '1.9\u20132.8', '2.0\u20132.3', '', '2.0'], ['Core PCE inflation4', '3.4', '2.5', '2.2', '2.0', '', '3.3\u20133.4', '2.3\u20132.6', '2.0\u20132.2', '2.0', '', '2.8\u20133.5', '2.1\u20132.7', '2.0\u20132.3', '2.0\u20132.1', ''], ['June projection', '3.3', '2.5', '2.1', '', '', '3.2\u20133.5', '2.3\u20132.6', '2.0\u20132.2', '', '', '2.6\u20133.5', '2.0\u20133.0', '2.0\u20132.4', '', ''], ['Memo: Projected appropriate policy path'], ['Federal funds rate', '4.1', '4.1', '3.9', '3.6', '3.2', '4.1\u20134.4', '3.6\u20134.4', '3.1\u20134.1', '3.1\u20133.6', '3.0\u20133.6', '3.9\u20134.4', '3.1\u20134.4', '3.1\u20134.1', '2.9\u20133.9', '2.9\u20133.9'], ['June projection', '3.8', '3.6', '3.4', '', '3.1', '3.6\u20134.1', '3.1\u20133.9', '3.1\u20133.6', '', '3.0\u20133.5', '3.4\u20134.4', '2.9\u20134.4', '2.9\u20133.9', '', '2.9\u20133.9']]}]"
    ]
   },
   "gold_real_yields": {
    "ok": true,
-   "updated": "2026-09-21T12:43:00+00:00",
+   "updated": "2026-09-21T12:44:58+00:00",
    "warnings": [
     "WGC demand: WGC report https://www.gold.org/goldhub/research/gold-demand-trends/gold-demand-trends-q2-2026 (quarter 2026Q2): matched only {'investment': 307.0} of ['jewellery_fabrication', 'investment', 'central_banks_and_other_institutions']; text near 'jewellery': 'ions: Executive summary Executive summary Outlook Jewellery Investment Central Banks Technology Supply Chart Gallery Notes and Definitions GDT Explained Related downloads Download xlsx GDT Q2 2026 Tables: EN XLSX Download xlsx GDT Q2 2026 Tables: CN XLSX Download xlsx GDT Q2 2026 Tables: JP XLSX Download ppt All Charts PPT Download zip All Files ZIP Information: Methodology note Contact the authors Demand steadies in Q2 as price softens H1 total '"
    ]
   },
   "frontier": {
    "ok": true,
-   "updated": "2026-09-21T12:43:00+00:00",
+   "updated": "2026-09-21T12:44:58+00:00",
    "warnings": []
   },
   "nok_oil": {
    "ok": true,
-   "updated": "2026-09-21T12:43:00+00:00",
+   "updated": "2026-09-21T12:44:58+00:00",
    "warnings": []
   },
   "uk_gilts": {
    "ok": true,
-   "updated": "2026-09-21T12:43:00+00:00",
+   "updated": "2026-09-21T12:44:58+00:00",
    "warnings": [
     "BoE 30Y gilt: 'years:' header row 3 in sheet '4. nominal spot curve' has no 30y column; maturities found: [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5, 10.0, 10.5, 11.0, 11.5, 12.0, 12.5, 13.0, 13.5, 14.0, 14.5, 15.0, 15.5, 16.0, 16.5, 17.0, 17.5, 18.0, 18.5, 19.0, 19.5, 20.0, 20.5, 21.0, 21.5, 22.0, 22.5, 23.0, 23.5, 24.0, 24.5, 25.0]",
-    "DMO gilts in issue: unrecognised export format (status 200); scripts=[]; export-string candidates=[]; body '<head><title>ShieldSquare Block</title><script type=\"text/javascript\"> window.SSJSInternal = 18155; var __uzdbm_1 = \"2ca5c127-9dac-43fc-95b2-3a05d3b8b1f9\"; var __uzdbm_2 = \"ZGIwYmRkZTItYmhiei00ZTI3LTh'; export-script snippets={}",
+    "DMO gilts in issue: unrecognised export format (status 200); scripts=[]; export-string candidates=[]; body '<head><title>ShieldSquare Block</title><script type=\"text/javascript\"> window.SSJSInternal = 18155; var __uzdbm_1 = \"aba44d19-a320-472c-b807-055d642a6942\"; var __uzdbm_2 = \"MzVkZjg4YTktYmhiei00YWM0LWE'; export-script snippets={}",
     "ONS central_govt_interest: CDID not configured",
     "ONS net_social_benefits: CDID not configured"
    ]
   }
  },
  "talking_points": {
-  "korea_fx": "USD/KRW moved -0.9% since the last update to 1,372, away from the 1,420 target.",
+  "korea_fx": "USD/KRW moved -1.0% since the last update to 1,371, away from the 1,420 target.",
   "us_rates": "The US 10Y yield is unchanged 0bp to 4.94%; 2s10s sits at +27bp; Fed funds unchanged for 4 days.",
-  "gold_real_yields": "Gold fell 0.7% to $4,395 while the 10Y real yield unchanged 0bp to 2.61%.",
+  "gold_real_yields": "Gold fell 0.7% to $4,394 while the 10Y real yield unchanged 0bp to 2.61%.",
   "frontier": "The frontier proxy unchanged 0.0% since the last update; 60-day correlation with UST 10Y changes is -0.85.",
-  "nok_oil": "NOK/EUR rose 0.0% while Brent rose 2.1% to $101.4; 60-day correlation is +0.38.",
+  "nok_oil": "NOK/EUR fell 0.0% while Brent rose 2.1% to $101.4; 60-day correlation is +0.38.",
   "uk_gilts": "The 10Y gilt yield is down 7bp to 5.17%; Bank Rate 3.75%, 277 days since the last move."
  },
  "compared_with": "2026-09-20",
@@ -66,11 +66,11 @@
     "notional": 1000000
    },
    "series": "usdkrw",
-   "current": 1371.8800048828125,
-   "pnl_pct": 5.39,
-   "pnl_usd": 56944.0,
+   "current": 1371.3199462890625,
+   "pnl_pct": 5.43,
+   "pnl_usd": 57375.0,
    "notional": 1000000.0,
-   "progress_to_target_pct": 260.4
+   "progress_to_target_pct": 262.3
   },
   "duration_call": {
    "detail": {
@@ -98,19 +98,19 @@
    "nok_oil_corr60": 0.3769839772674539
   },
   "2026-09-21": {
-   "usdkrw": 1371.8800048828125,
+   "usdkrw": 1371.3199462890625,
    "ust2": 4.67,
    "ust10": 4.94,
    "curve_2s10s": 27.000000000000046,
    "ust30": 5.29,
-   "gold": 4395.2001953125,
+   "gold": 4393.89990234375,
    "real10": 2.61,
-   "gold_real_corr60": -0.24948295892156258,
+   "gold_real_corr60": -0.24935083899077834,
    "emb": 93.37999725341797,
    "corr60": -0.8547381854896253,
-   "nok_eur": 0.0925323632420496,
+   "nok_eur": 0.09250548177659405,
    "oil_brent": 101.37000274658203,
-   "nok_oil_corr60": 0.381680617345965,
+   "nok_oil_corr60": 0.3833035794501781,
    "gilt10": 5.1742,
    "bank_rate": 3.75
   }
