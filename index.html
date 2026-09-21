@@ -125,7 +125,7 @@ function lineChart(canvas, datasets, {dec = 2, unit = '', zero = false, sets} = 
   const ds = cutd.map(d => { const m = new Map(d.pairs);
     return { label: d.label, data: labels.map(l => m.has(l) ? m.get(l) : null), borderColor: css(d.color), backgroundColor: css(d.color),
              borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, pointHoverBorderWidth: 2, pointHoverBorderColor: css('--surface'),
-             tension: 0, spanGaps: true, stepped: d.step ? 'before' : false }; });
+             tension: 0, spanGaps: true, stepped: d.step ? 'before' : false, borderDash: d.dash || [] }; });
   const ch = new Chart(canvas, { type: 'line', data: { labels, datasets: ds }, plugins: [crosshair],
     options: { responsive: true, maintainAspectRatio: false, animation: false,
       interaction: { mode: 'index', intersect: false },
@@ -200,18 +200,47 @@ function addRefLines(ch, lines) {   // dashed horizontal reference lines (entry 
       g.setLineDash([]); g.fillStyle = css('--text-2'); g.font = '10px system-ui'; g.fillText(`${t} ${fmt(v, 0)}`, left + 4, y - 3); g.restore(); }); } });
   ch.update('none');
 }
+function drawFedDotChart(canvas, d) {
+  const hist = cut(d.series.dff || []);
+  const dp = d.dot_plot;
+  const dots = dp ? Object.entries(dp.median).filter(([y]) => y !== 'longer run').map(([y, v]) => [`${y}-12-31`, v]) : [];
+  const labels = [...new Set([...hist.map(p => p[0]), ...dots.map(p => p[0])])].sort();
+  const histMap = new Map(hist), dotMap = new Map(dots);
+  const ch = new Chart(canvas, { type: 'line', plugins: [crosshair],
+    data: { labels, datasets: [
+      { label: 'Fed funds (effective)', data: labels.map(l => histMap.has(l) ? histMap.get(l) : null),
+        borderColor: css('--s1'), backgroundColor: css('--s1'), borderWidth: 2, pointRadius: 0, pointHoverRadius: 4,
+        pointHoverBorderWidth: 2, pointHoverBorderColor: css('--surface'), tension: 0, spanGaps: true, stepped: 'before' },
+      { label: 'FOMC dot plot (median)', data: labels.map(l => dotMap.has(l) ? dotMap.get(l) : null),
+        borderColor: css('--s2'), backgroundColor: css('--s2'), borderWidth: 0, pointRadius: 5, pointHoverRadius: 6,
+        showLine: false, spanGaps: false } ] },
+    options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
+      scales: { x: { ticks: { maxTicksLimit: 6, maxRotation: 0, color: css('--text-3'), font: {size: 10} }, grid: { display: false }, border: { color: css('--grid') } },
+                y: { grace: '10%', ticks: { color: css('--text-3'), font: {size: 10}, callback: v => fmt(v, 2) + '%' }, grid: { color: css('--grid') }, border: { display: false } } },
+      plugins: { legend: { position: 'bottom', labels: { color: css('--text-2'), boxWidth: 10, boxHeight: 3, font: {size: 11} } },
+        tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${fmt(c.parsed.y, 2)}%` } } } } });
+  charts.push(ch);
+}
 function drawUS(el) {
   const d = D.us_rates; if (!d) return missing(el);
-  const L = d.latest;
+  const L = d.latest, dp = d.dot_plot;
+  const dotCaption = dp ? `FOMC median path (${dp.release_date}): ${Object.entries(dp.median).map(([y, v]) => `${y} ${fmt(v, 2)}%`).join(' · ')}` : '';
   el.innerHTML = `<div class="tiles">${tile('UST 2Y', fmt(first(L.ust2)) + '%', asOf(L.ust2))}${tile('UST 10Y', fmt(first(L.ust10)) + '%', asOf(L.ust10))}${L.ust30 ? tile('UST 30Y', fmt(first(L.ust30)) + '%', asOf(L.ust30)) : ''}
-    ${tile('2s10s', fmt(L.curve_2s10s_bp, 0) + 'bp')}${L.cpi_yoy ? tile('CPI YoY', fmt(first(L.cpi_yoy)) + '%', asOf(L.cpi_yoy)) : ''}</div>
+    ${tile('2s10s', fmt(L.curve_2s10s_bp, 0) + 'bp')}${L.cpi_yoy ? tile('CPI YoY', fmt(first(L.cpi_yoy)) + '%', asOf(L.cpi_yoy)) : ''}${L.core_pce_yoy ? tile('Core PCE YoY', fmt(first(L.core_pce_yoy)) + '%', asOf(L.core_pce_yoy)) : ''}</div>
     ${rateBox('Fed funds (effective)', d.fed)}
     <div class="charts">${chartBox('UST 2Y / 10Y' + (d.series.ust30 ? ' / 30Y' : '') + ' yield (%)', 'c-ust')}${chartBox('2s10s curve slope (bp)', 'c-curve')}
-    ${d.series.cpi_yoy ? chartBox('CPI-U, year-on-year (%)', 'c-cpi') : ''}</div>${warnHtml(d)}`;
+    ${d.series.cpi_yoy ? chartBox('Inflation, year-on-year (%): CPI, core CPI, PCE, core PCE', 'c-cpi') : ''}
+    ${d.series.dff ? chartBox('Fed funds rate & FOMC dot plot (median)', 'c-feddot', dotCaption ? `<div class="warn">${esc(dotCaption)}</div>` : '') : ''}</div>${warnHtml(d)}`;
   lineChart(el.querySelector('#c-ust'), [{label: '2Y', pairs: d.series.ust2, color: '--s1'}, {label: '10Y', pairs: d.series.ust10, color: '--s2'},
     ...(d.series.ust30 ? [{label: '30Y', pairs: d.series.ust30, color: '--s3'}] : [])], {unit: '%'});
   lineChart(el.querySelector('#c-curve'), [{label: '2s10s', pairs: d.series.curve_2s10s_bp, color: '--s1'}], {dec: 0, unit: 'bp'});
-  if (d.series.cpi_yoy) lineChart(el.querySelector('#c-cpi'), [{label: 'CPI YoY', pairs: d.series.cpi_yoy, color: '--s1'}], {unit: '%'});
+  if (d.series.cpi_yoy) lineChart(el.querySelector('#c-cpi'), [
+    {label: 'CPI', pairs: d.series.cpi_yoy, color: '--s1'},
+    ...(d.series.core_cpi_yoy ? [{label: 'Core CPI', pairs: d.series.core_cpi_yoy, color: '--s1', dash: [6, 3]}] : []),
+    ...(d.series.pce_yoy ? [{label: 'PCE', pairs: d.series.pce_yoy, color: '--s2'}] : []),
+    ...(d.series.core_pce_yoy ? [{label: 'Core PCE', pairs: d.series.core_pce_yoy, color: '--s2', dash: [6, 3]}] : []),
+  ], {unit: '%'});
+  if (d.series.dff) drawFedDotChart(el.querySelector('#c-feddot'), d);
 }
 /* Gold vs inverted 10Y real yield: dual-axis by deliberate choice (not the usual single-
    axis rule) - the two series live on different units but have a well-known inverse

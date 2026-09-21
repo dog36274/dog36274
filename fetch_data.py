@@ -655,6 +655,46 @@ def scrape_krx_foreign_net_buy():
                        f"bld candidates from those scripts={js_hits}")
 
 
+def fomc_dot_plot():
+    """Best-effort scrape of the FOMC's quarterly Summary of Economic Projections
+    (SEP) - the median federal funds rate "dot plot" path, published four times a
+    year (Mar/Jun/Sep/Dec) on federalreserve.gov. Only the median per projection
+    year is scraped; the full anonymized scatter of every individual participant's
+    dot is published solely in the SEP PDF's appendix table, not as structured
+    HTML/CSV data, so it isn't available to a scraper like this one. Finds the
+    current release by scanning the FOMC calendar page's own links rather than
+    guessing a meeting-date-stamped URL (fomcprojtabl<YYYYMMDD>.htm) that would go
+    stale every quarter. Table layout not confirmed live yet - on a miss this
+    reports the real tables found so the row lookup can be fixed precisely."""
+    if DEMO:
+        yr = TODAY.year
+        return {"release_date": TODAY.isoformat(),
+               "median": {str(yr): 4.125, str(yr + 1): 3.625, str(yr + 2): 3.375, "longer run": 3.0}}
+    cal = http_get("https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm")
+    links = list(dict.fromkeys(re.findall(r'href="(/monetarypolicy/fomcprojtabl\d{8}\.htm)"', cal.text, re.I)))
+    if not links:
+        snippet = re.sub(r"\s+", " ", cal.text)[:400]
+        raise RuntimeError(f"FOMC SEP: no fomcprojtabl links found on the calendar page "
+                           f"(status {cal.status_code}); body {snippet!r}")
+    url = f"https://www.federalreserve.gov{links[0]}"
+    r = http_get(url)
+    tables = pd.read_html(StringIO(r.text))
+    for t in tables:
+        rows = t.astype(str).values.tolist()
+        for i, row in enumerate(rows):
+            if any("federal funds rate" in str(c).lower() for c in row):
+                for j in range(i, min(i + 5, len(rows))):
+                    if str(rows[j][0]).strip().lower().startswith("median"):
+                        nums = _numbers(rows[j][1:])
+                        if nums:
+                            years = [str(TODAY.year + k) for k in range(len(nums) - 1)] + ["longer run"]
+                            return {"release_date": TODAY.isoformat(), "source_url": url,
+                                   "median": dict(zip(years, nums))}
+    raise RuntimeError(f"FOMC SEP {url}: fetched {len(tables)} tables but couldn't find a "
+                       f"'Federal funds rate' row followed by a 'Median' row; "
+                       f"table row counts={[len(t) for t in tables]}")
+
+
 # --------------------------------- panels -----------------------------------
 def panel_korea():
     p = Panel()
@@ -695,11 +735,25 @@ def panel_us():
         p.snap["ust30"] = last(d30)[0]
         p.data["latest"]["ust30"] = last(d30)
         p.data["series"]["ust30"] = pairs(d30)
-    cpi = p.optional("CPI", lambda: fred("CPIAUCSL", start="2020-01-01"))
-    if cpi is not None:
-        yoy = (cpi.pct_change(12) * 100).dropna()
-        p.data["series"]["cpi_yoy"] = pairs(yoy, 60)
-        p.data["latest"]["cpi_yoy"] = [round(float(yoy.iloc[-1]), 2), yoy.index[-1].strftime("%Y-%m-%d")]
+    # BLS's official headline/core "12-month percent change" is computed from the
+    # NOT-seasonally-adjusted series (seasonal adjustment is for month-over-month
+    # comparisons; a 12-month change already cancels seasonal effects, and using
+    # the SA series here understated the widely-quoted headline figure). BEA's PCE
+    # release uses the opposite convention - its standard "percent change from
+    # year ago" tables use the seasonally-adjusted series.
+    for key, label, series_id in [("cpi_yoy", "CPI", "CPIAUCNS"),
+                                  ("core_cpi_yoy", "Core CPI", "CPILFENS"),
+                                  ("pce_yoy", "PCE", "PCEPI"),
+                                  ("core_pce_yoy", "Core PCE", "PCEPILFE")]:
+        s = p.optional(label, lambda sid=series_id: fred(sid, start="2020-01-01"))
+        if s is None:
+            continue
+        yoy = (s.pct_change(12) * 100).dropna()
+        if not len(yoy):
+            continue
+        p.data["series"][key] = pairs(yoy, 60)
+        p.data["latest"][key] = [round(float(yoy.iloc[-1]), 2), yoy.index[-1].strftime("%Y-%m-%d")]
+    p.data["dot_plot"] = p.optional("FOMC dot plot", fomc_dot_plot)
     return p
 
 
