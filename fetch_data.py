@@ -671,12 +671,16 @@ def fomc_dot_plot():
         return {"release_date": TODAY.isoformat(),
                "median": {str(yr): 4.125, str(yr + 1): 3.625, str(yr + 2): 3.375, "longer run": 3.0}}
     cal = http_get("https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm")
-    links = list(dict.fromkeys(re.findall(r'href="(/monetarypolicy/fomcprojtabl\d{8}\.htm)"', cal.text, re.I)))
-    if not links:
+    matches = re.findall(r'href="(/monetarypolicy/fomcprojtabl(\d{8})\.htm)"', cal.text, re.I)
+    if not matches:
         snippet = re.sub(r"\s+", " ", cal.text)[:400]
         raise RuntimeError(f"FOMC SEP: no fomcprojtabl links found on the calendar page "
                            f"(status {cal.status_code}); body {snippet!r}")
-    url = f"https://www.federalreserve.gov{links[0]}"
+    # Pick by the date embedded in the URL, not page order - the calendar page
+    # lists meetings oldest-first, so the first regex match was a stale (March)
+    # release instead of the most recent one.
+    path, _ = max(matches, key=lambda m: m[1])
+    url = f"https://www.federalreserve.gov{path}"
     r = http_get(url)
     tables = pd.read_html(StringIO(r.text))
     for t in tables:
@@ -690,9 +694,17 @@ def fomc_dot_plot():
                             years = [str(TODAY.year + k) for k in range(len(nums) - 1)] + ["longer run"]
                             return {"release_date": TODAY.isoformat(), "source_url": url,
                                    "median": dict(zip(years, nums))}
-    raise RuntimeError(f"FOMC SEP {url}: fetched {len(tables)} tables but couldn't find a "
-                       f"'Federal funds rate' row followed by a 'Median' row; "
-                       f"table row counts={[len(t) for t in tables]}")
+    # Nothing matched the exact "Federal funds rate" -> "Median" adjacency - show
+    # the actual content of whichever tables mention "federal" at all, rather than
+    # just row counts, so the real row/column layout is visible for the next fix.
+    candidates = []
+    for ti, t in enumerate(tables):
+        cells = t.astype(str).values.flatten()
+        if any("federal" in c.lower() for c in cells):
+            candidates.append({"table": ti, "shape": t.shape, "rows": t.head(20).values.tolist()})
+    raise RuntimeError(f"FOMC SEP {url}: fetched {len(tables)} tables, none matched the exact "
+                       f"'Federal funds rate' -> 'Median' row pattern; tables mentioning "
+                       f"'federal' anywhere ({len(candidates)} of them): {candidates[:2]}")
 
 
 # --------------------------------- panels -----------------------------------
