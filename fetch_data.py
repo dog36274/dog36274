@@ -682,23 +682,23 @@ def fomc_dot_plot():
     path, _ = max(matches, key=lambda m: m[1])
     url = f"https://www.federalreserve.gov{path}"
     r = http_get(url)
-    try:
-        # header=None: this page's complex multi-row headers (variable name
-        # spanning rows, then year columns, then Median/Central Tendency/Range
-        # sub-rows) trip pandas' own header-name inference/dedup logic ("'float'
-        # object has no attribute 'lower'" - a bare numeric-looking header cell
-        # like "2026" getting parsed as a float instead of text). Treating
-        # everything as plain data sidesteps that; row/column lookup below
-        # already doesn't assume real header labels.
-        tables = pd.read_html(StringIO(r.text), header=None)
-    except Exception as e:  # noqa: BLE001
-        raise RuntimeError(f"FOMC SEP {url}: pd.read_html failed: {type(e).__name__}: {e}")
-    for t in tables:
-        rows = t.astype(str).values.tolist()
+    # pd.read_html kept raising "'float' object has no attribute 'lower'" from
+    # somewhere inside its own type-inference on this page's tables, even with
+    # header=None - not a header-parsing issue after all. Walking the raw HTML
+    # with lxml instead guarantees plain Python strings for every cell (via
+    # .text_content()), sidestepping whatever internal pandas quirk that was.
+    import lxml.html
+    tree = lxml.html.fromstring(r.content)
+    tables = []
+    for table_el in tree.xpath("//table"):
+        rows = [[c.text_content().strip() for c in tr.xpath("./td | ./th")]
+               for tr in table_el.xpath(".//tr")]
+        tables.append([row for row in rows if row])
+    for rows in tables:
         for i, row in enumerate(rows):
-            if any("federal funds rate" in str(c).lower() for c in row):
+            if any("federal funds rate" in c.lower() for c in row):
                 for j in range(i, min(i + 5, len(rows))):
-                    if str(rows[j][0]).strip().lower().startswith("median"):
+                    if rows[j] and rows[j][0].strip().lower().startswith("median"):
                         nums = _numbers(rows[j][1:])
                         if nums:
                             years = [str(TODAY.year + k) for k in range(len(nums) - 1)] + ["longer run"]
@@ -707,11 +707,8 @@ def fomc_dot_plot():
     # Nothing matched the exact "Federal funds rate" -> "Median" adjacency - show
     # the actual content of whichever tables mention "federal" at all, rather than
     # just row counts, so the real row/column layout is visible for the next fix.
-    candidates = []
-    for ti, t in enumerate(tables):
-        cells = t.astype(str).values.flatten()
-        if any("federal" in c.lower() for c in cells):
-            candidates.append({"table": ti, "shape": t.shape, "rows": t.head(20).values.tolist()})
+    candidates = [{"table": ti, "rows": rows[:20]} for ti, rows in enumerate(tables)
+                 if any("federal" in c.lower() for row in rows for c in row)]
     raise RuntimeError(f"FOMC SEP {url}: fetched {len(tables)} tables, none matched the exact "
                        f"'Federal funds rate' -> 'Median' row pattern; tables mentioning "
                        f"'federal' anywhere ({len(candidates)} of them): {candidates[:2]}")
