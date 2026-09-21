@@ -786,19 +786,14 @@ def panel_us():
         s = p.optional(label, lambda sid=series_id: fred(sid, start="2020-01-01"))
         if s is None:
             continue
-        if key == "cpi_yoy":
-            # Temporary: user is seeing 3.4% in news headlines, we compute 3.69% -
-            # dump the raw index tail so the exact month-by-month arithmetic behind
-            # our number is checkable (gap in the series, wrong vintage, off-by-one
-            # month, etc. would all show up here). Remove once resolved.
-            tail = s.tail(14)
-            p.warnings.append("DEBUG CPIAUCNS raw tail: " +
-                              "; ".join(f"{d:%Y-%m}={v:.3f}" for d, v in tail.items()))
-            if len(s) > 12:
-                base = s.iloc[-13]
-                p.warnings.append(f"DEBUG YoY calc: latest={s.iloc[-1]:.3f} ({s.index[-1]:%Y-%m}) "
-                                  f"vs 12mo-ago={base:.3f} ({s.index[-13]:%Y-%m}) -> "
-                                  f"{(s.iloc[-1] / base - 1) * 100:.3f}%")
+        # These are monthly index series, but FRED occasionally has a missing month
+        # (e.g. a delayed BLS release not yet backfilled). pct_change(12) shifts by
+        # 12 ROWS, not 12 calendar months, so a single gap silently makes every later
+        # comparison land a month off (13-month change reported as "12-month"). Reindex
+        # to a gapless month-start calendar first so a missing month becomes an explicit
+        # NaN - pct_change(12) then always compares true calendar year-over-year.
+        s = s.resample("MS").last().reindex(
+            pd.date_range(s.index.min(), s.index.max(), freq="MS"))
         yoy = (s.pct_change(12) * 100).dropna()
         if not len(yoy):
             continue
