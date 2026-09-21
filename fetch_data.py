@@ -682,7 +682,17 @@ def fomc_dot_plot():
     path, _ = max(matches, key=lambda m: m[1])
     url = f"https://www.federalreserve.gov{path}"
     r = http_get(url)
-    tables = pd.read_html(StringIO(r.text))
+    try:
+        # header=None: this page's complex multi-row headers (variable name
+        # spanning rows, then year columns, then Median/Central Tendency/Range
+        # sub-rows) trip pandas' own header-name inference/dedup logic ("'float'
+        # object has no attribute 'lower'" - a bare numeric-looking header cell
+        # like "2026" getting parsed as a float instead of text). Treating
+        # everything as plain data sidesteps that; row/column lookup below
+        # already doesn't assume real header labels.
+        tables = pd.read_html(StringIO(r.text), header=None)
+    except Exception as e:  # noqa: BLE001
+        raise RuntimeError(f"FOMC SEP {url}: pd.read_html failed: {type(e).__name__}: {e}")
     for t in tables:
         rows = t.astype(str).values.tolist()
         for i, row in enumerate(rows):
