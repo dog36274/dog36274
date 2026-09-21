@@ -1,44 +1,47 @@
 {
- "last_run": "2026-09-21T12:47:00+00:00",
+ "last_run": "2026-09-21T13:00:30+00:00",
  "demo": false,
  "all_ok": true,
  "panels": {
   "korea_fx": {
    "ok": true,
-   "updated": "2026-09-21T12:47:00+00:00",
+   "updated": "2026-09-21T13:00:30+00:00",
    "warnings": [
     "BoK base rate: BOK_API_KEY not set",
-    "KRX foreign net buy: KRX: page too small for real content (status 200, 377 chars, body=\"<!DOCTYPE html>\\n<html>\\n<head>\\n<title></title>\\n</head>\\n<body>\\n<script type='text/javascript'>\\nalert('\ub85c\uadf8\uc778 \ub610\ub294 \ud68c\uc6d0\uac00\uc785\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.');\\nlocation.href='/contents/MDC/COMS/client/MDCCOMS001.cmd?locale=ko_KR&redirectURL=b2h0aEZNWThrQ2s4amxkQjNPS3pLdmxteXFTdGFHRElNWlh0c2pYbU4rRnRVSml4MXpWeWwrZUpBVUlJUmlERWl1TVZJdWZNd0NwZHRpQWdjdkFQTFhGUVhFSFNOeGRJVUEwdU45dkhoZlk9';\\n</script>\\n</body>\\n</html>\\n\"); scripts found=[]; bld candidates from those scripts={}"
+    "KRX foreign net buy: KRX: page too small for real content (status 200, 377 chars, body=\"<!DOCTYPE html>\\n<html>\\n<head>\\n<title></title>\\n</head>\\n<body>\\n<script type='text/javascript'>\\nalert('\ub85c\uadf8\uc778 \ub610\ub294 \ud68c\uc6d0\uac00\uc785\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.');\\nlocation.href='/contents/MDC/COMS/client/MDCCOMS001.cmd?locale=ko_KR&redirectURL=b2h0aEZNWThrQ2s4amxkQjNPS3pLdmxteXFTdGFHRElNWlh0c2pYbU4rRnRVSml4MXpWeWwrZUpBVUlJUmlERWl1TVZJdWZNd0NwZHRpQWdjdkFQTFpvNHZVRWZHVW5LaW5WaVkxUk85WjQ9';\\n</script>\\n</body>\\n</html>\\n\"); scripts found=[]; bld candidates from those scripts={}"
    ]
   },
   "us_rates": {
    "ok": true,
-   "updated": "2026-09-21T12:47:00+00:00",
-   "warnings": []
+   "updated": "2026-09-21T13:00:30+00:00",
+   "warnings": [
+    "DEBUG CPIAUCNS raw tail: 2025-06=322.561; 2025-07=323.048; 2025-08=323.976; 2025-09=324.800; 2025-11=324.122; 2025-12=324.054; 2026-01=325.252; 2026-02=326.785; 2026-03=330.213; 2026-04=333.020; 2026-05=335.123; 2026-06=333.952; 2026-07=333.918; 2026-08=334.980",
+    "DEBUG YoY calc: latest=334.980 (2026-08) vs 12mo-ago=323.048 (2025-07) -> 3.694%"
+   ]
   },
   "gold_real_yields": {
    "ok": true,
-   "updated": "2026-09-21T12:47:00+00:00",
+   "updated": "2026-09-21T13:00:30+00:00",
    "warnings": [
     "WGC demand: WGC report https://www.gold.org/goldhub/research/gold-demand-trends/gold-demand-trends-q2-2026 (quarter 2026Q2): matched only {'investment': 307.0} of ['jewellery_fabrication', 'investment', 'central_banks_and_other_institutions']; text near 'jewellery': 'ions: Executive summary Executive summary Outlook Jewellery Investment Central Banks Technology Supply Chart Gallery Notes and Definitions GDT Explained Related downloads Download xlsx GDT Q2 2026 Tables: EN XLSX Download xlsx GDT Q2 2026 Tables: CN XLSX Download xlsx GDT Q2 2026 Tables: JP XLSX Download ppt All Charts PPT Download zip All Files ZIP Information: Methodology note Contact the authors Demand steadies in Q2 as price softens H1 total '"
    ]
   },
   "frontier": {
    "ok": true,
-   "updated": "2026-09-21T12:47:00+00:00",
+   "updated": "2026-09-21T13:00:30+00:00",
    "warnings": []
   },
   "nok_oil": {
    "ok": true,
-   "updated": "2026-09-21T12:47:00+00:00",
+   "updated": "2026-09-21T13:00:30+00:00",
    "warnings": []
   },
   "uk_gilts": {
    "ok": true,
-   "updated": "2026-09-21T12:47:00+00:00",
+   "updated": "2026-09-21T13:00:30+00:00",
    "warnings": [
     "BoE 30Y gilt: 'years:' header row 3 in sheet '4. nominal spot curve' has no 30y column; maturities found: [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5, 10.0, 10.5, 11.0, 11.5, 12.0, 12.5, 13.0, 13.5, 14.0, 14.5, 15.0, 15.5, 16.0, 16.5, 17.0, 17.5, 18.0, 18.5, 19.0, 19.5, 20.0, 20.5, 21.0, 21.5, 22.0, 22.5, 23.0, 23.5, 24.0, 24.5, 25.0]",
-    "DMO gilts in issue: unrecognised export format (status 200); scripts=[]; export-string candidates=[]; body '<head><title>ShieldSquare Block</title><script type=\"text/javascript\"> window.SSJSInternal = 18155; var __uzdbm_1 = \"9825c74c-47e8-4be9-b6d2-8195bd2d329f\"; var __uzdbm_2 = \"OThmZGExZmUtYmhiei00MzQzLWI'; export-script snippets={}",
+    "DMO gilts in issue: unrecognised export format (status 200); scripts=['https://cc.cdn.civiccomputing.com/9/cookieControl-9.2.min.js', '/dist/scripts/reports/DataReport.js', '/dist/scripts/reports/ExportData.js', '/dist/scripts/reports/ExportDataReport.js', '/dist/scripts/main.min.js?v=SGdAbtvyeSanpJUx3URJqaRuHqxtwo_zbFcU-yeSg5I', '/dist/scripts/reports/TableData.js']; export-string candidates=['\\r\\n    };\\r\\n    const exportUrl = ', '!==n[1]}));t.exports=function(t,e,n,f){var d=i(t),g=!o((function(){var e={};return e[d]=function(){return 7},7!=', '!=typeof module?module.exports=e():', '!=typeof module?module.exports=i():', '#exportDataReport', '&&module.exports){module.exports=factory(require(', '&&typeof module.exports===', '&exportFormatValue=', ')!=-1/0;t.exports=a?function(t){var e=o(String(t)),n=c(e);return 0===n&&', ')()}).call(this,n(165))},function(t,e){t.exports=function(t){return', ')),n}};t.exports={start:a(1),end:a(2),trim:a(3)}},function(t,e,n){var r=n(14);t.exports=function(t,e,n){for(var o in e)r(t,o,e[o],n);return t}},function(t,e,n){var r=n(1),o=n(25),i=', '))[0]+r[1]:c&&(!(r=c.match(/Edge\\\\/(\\\\d+)/))||r[1]>=74)&&(r=c.match(/Chrome\\\\/(\\\\d+)/))&&(o=r[1]),t.exports=o&&+o},function(t,e,n){', '),a=r.Uint8Array,s=i.values,u=i.keys,l=i.entries,f=o.aTypedArray,p=o.exportTypedArrayMethod,h=a&&a.prototype[c],d=!!h&&(', '),c=Array.prototype;t.exports=function(t){return void 0!==t&&(o.Array===t||c[i]===t)}},function(t,e,n){var r={};r[n(6)(', '),e=b(e,{body:v(0,String(n)),headers:v(0,r)}))),o.push(e)),k.apply(this,o)}}),t.exports={URLSearchParams:B,getState:T}},function(t,e,n){', '),l=r.Symbol,f=s?l:l&&l.withoutSetter||c;t.exports=function(t){return i(u,t)||(a&&i(l,t)?u[t]=l[t]:u[t]=f(', '),s=Object.prototype;t.exports=c?Object.getPrototypeOf:function(t){return t=o(t),r(t,a)?t[a]:', '):Object(t)}:Object},function(t,e){var n=0,r=Math.random();t.exports=function(t){return', ');(t.exports=function(t,e,n,a){var s=!!a&&!!a.unsafe,u=!!a&&!!a.enumerable,p=!!a&&!!a.noTargetGet;', ');e.f=Object.getOwnPropertyNames||function(t){return r(t,o)}},function(t,e,n){var r=n(25);t.exports=Array.isArray||function(t){return']; body ' <!DOCTYPE html> <html lang=\"en\"> <head> <meta charset=\"UTF-8\"> <title>Gilts in Issue</title> <meta name=\"viewport\" content=\"width=device-width\" /> <link rel=\"apple-touch-icon-precomposed\" sizes=\"57x5'; export-script snippets={'/dist/scripts/reports/ExportData.js': '\u00ef\u00bb\u00bfvar ReportViewModel = {}\\r\\n\\r\\nfunction initExportData(exportDataReportViewModel) {\\r\\n     ReportViewModel = exportDataReportViewModel;\\r\\n};\\r\\n\\r\\nfunction GenerateDownloadDataReport(format) {\\r\\n    var exportUrl;\\r\\n\\r\\n    if (ReportViewModel.ReportParameters == null) {\\r\\n        exportUrl = \"/umbraco/surface/DataExport/GetDataExport?reportCode=\" +\\r\\n            ReportViewModel.ReportCode +\\r\\n            \"&exportFormatValue=\" +\\r\\n            format;\\r\\n\\r\\n        window.location.assign(exportUrl);\\r\\n    } else {\\r\\n        var areErrors = validateParameters(ReportViewModel.ReportParameters, $(\"#exportDataReport\").serializeArray());\\r\\n        if (!areErrors) {\\r\\n                exportUrl = \"/umbraco/surface/DataExport/GetDataExport?reportCode=\" +\\r\\n                    ReportViewModel.ReportCode +\\r\\n                    \"&exportFormatValue=\" +\\r\\n                    format +\\r\\n                    \"&parameters=\" +\\r\\n                    createParameterString($(\"#exportDataReport\"));\\r\\n\\r\\n                window.location.assign(exportUrl);\\r\\n            }\\r\\n        }\\r\\n};\\r\\n', '/dist/scripts/reports/ExportDataReport.js': '\u00ef\u00bb\u00bfjQuery(document).ready(function () {\\r\\n    initExportData(exportreportdata);\\r\\n});'}",
     "ONS central_govt_interest: CDID not configured",
     "ONS net_social_benefits: CDID not configured"
    ]
@@ -47,9 +50,9 @@
  "talking_points": {
   "korea_fx": "USD/KRW moved -0.9% since the last update to 1,372, away from the 1,420 target.",
   "us_rates": "The US 10Y yield is unchanged 0bp to 4.94%; 2s10s sits at +27bp; Fed funds unchanged for 4 days.",
-  "gold_real_yields": "Gold fell 0.8% to $4,389 while the 10Y real yield unchanged 0bp to 2.61%.",
+  "gold_real_yields": "Gold fell 0.7% to $4,396 while the 10Y real yield unchanged 0bp to 2.61%.",
   "frontier": "The frontier proxy unchanged 0.0% since the last update; 60-day correlation with UST 10Y changes is -0.85.",
-  "nok_oil": "NOK/EUR fell 0.0% while Brent rose 2.1% to $101.3; 60-day correlation is +0.38.",
+  "nok_oil": "NOK/EUR fell 0.0% while Brent rose 1.9% to $101.1; 60-day correlation is +0.38.",
   "uk_gilts": "The 10Y gilt yield is down 7bp to 5.17%; Bank Rate 3.75%, 277 days since the last move."
  },
  "compared_with": "2026-09-20",
@@ -64,11 +67,11 @@
     "notional": 1000000
    },
    "series": "usdkrw",
-   "current": 1371.5799560546875,
-   "pnl_pct": 5.41,
-   "pnl_usd": 57175.0,
+   "current": 1371.97998046875,
+   "pnl_pct": 5.38,
+   "pnl_usd": 56867.0,
    "notional": 1000000.0,
-   "progress_to_target_pct": 261.4
+   "progress_to_target_pct": 260.1
   },
   "duration_call": {
    "detail": {
@@ -96,19 +99,19 @@
    "nok_oil_corr60": 0.3769839772674539
   },
   "2026-09-21": {
-   "usdkrw": 1371.5799560546875,
+   "usdkrw": 1371.97998046875,
    "ust2": 4.67,
    "ust10": 4.94,
    "curve_2s10s": 27.000000000000046,
    "ust30": 5.29,
-   "gold": 4389.2001953125,
+   "gold": 4395.5,
    "real10": 2.61,
-   "gold_real_corr60": -0.2488578167448621,
+   "gold_real_corr60": -0.24951315650407277,
    "emb": 93.37999725341797,
    "corr60": -0.8547381854896253,
-   "nok_eur": 0.09249102302299442,
-   "oil_brent": 101.33000183105469,
-   "nok_oil_corr60": 0.3841490662450535,
+   "nok_eur": 0.09250009593377526,
+   "oil_brent": 101.12999725341797,
+   "nok_oil_corr60": 0.3836275454216683,
    "gilt10": 5.1742,
    "bank_rate": 3.75
   }
