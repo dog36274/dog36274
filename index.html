@@ -220,7 +220,7 @@ function drawUS(el) {
    `grace`), so the two lines span a comparable share of the chart height regardless of
    their absolute units. */
 const HZ_OPTIONS = [['1M', '1m'], ['3M', '3m'], ['6M', '6m'], ['1Y', '1y'], ['YTD', 'ytd']];
-let goldHorizon = '1y', goldChart = null;
+let goldHorizon = '1y', goldChart = null, goldCorrChart = null;
 let nokOilHorizon = '1y', nokOilChart = null, nokOilCorrChart = null;
 function filterHorizon(pairs, key) {
   if (!pairs || !pairs.length) return [];
@@ -259,16 +259,18 @@ const WGC_SERIES = [
   ['investment', 'Investment', '--s2'],
   ['central_banks_and_other_institutions', 'Central banks & other institutions', '--s3'],
 ];
-function drawGold5yChart(canvas, pairs) {
-  const ch = new Chart(canvas, { type: 'line', plugins: [crosshair],
-    data: { labels: pairs.map(p => p[0]), datasets: [{ label: 'Gold (USD/oz)', data: pairs.map(p => p[1]),
-      borderColor: css('--s1'), backgroundColor: css('--s1'), borderWidth: 2, pointRadius: 0, pointHoverRadius: 4,
+function drawGoldCorrChart(canvas, d) {
+  if (goldCorrChart) { const i = charts.indexOf(goldCorrChart); if (i >= 0) charts.splice(i, 1); goldCorrChart.destroy(); }
+  const corr = filterHorizon(d.series.corr60, goldHorizon);
+  goldCorrChart = new Chart(canvas, { type: 'line', plugins: [crosshair],
+    data: { labels: corr.map(p => p[0]), datasets: [{ label: '60d correlation', data: corr.map(p => p[1]),
+      borderColor: css('--s3'), backgroundColor: css('--s3'), borderWidth: 2, pointRadius: 0, pointHoverRadius: 4,
       pointHoverBorderWidth: 2, pointHoverBorderColor: css('--surface'), tension: 0, spanGaps: true }] },
     options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
       scales: { x: { ticks: { maxTicksLimit: 6, maxRotation: 0, color: css('--text-3'), font: {size: 10} }, grid: { display: false }, border: { color: css('--grid') } },
-                y: { grace: '5%', ticks: { color: css('--text-3'), font: {size: 10}, callback: v => '$' + fmt(v, 0) }, grid: { color: css('--grid') }, border: { display: false } } },
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` Gold: $${fmt(c.parsed.y, 0)}` } } } } });
-  charts.push(ch); return ch;
+                y: { min: -1, max: 1, ticks: { color: css('--text-3'), font: {size: 10}, callback: v => fmt(v, 1) }, grid: { color: css('--grid') }, border: { display: false } } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` Correlation: ${fmt(c.parsed.y, 2)}` } } } } });
+  charts.push(goldCorrChart);
 }
 function drawWgcStackedChart(canvas, quarters) {
   const labels = quarters.map(q => q.quarter);
@@ -295,16 +297,17 @@ function drawGold(el) {
       <div class="box"><canvas id="c-gold-real" role="img" aria-label="Gold vs 10Y real yield, inverted"></canvas></div>
     </div>
     <div class="charts">
-    ${d.series.gold_5y ? chartBox('Gold price, past 5 years (USD/oz)', 'c-gold-5y') : ''}
+    ${d.series.corr60 ? chartBox('Rolling 60-day correlation (gold vs 10Y real yield, daily % / pp change)', 'c-gold-corr') : ''}
     <div class="chart"><h3>Gold demand by category (tonnes, WGC, quarterly)</h3>${q.length ? '<div class="box"><canvas id="c-wgc"></canvas></div>'
       : '<div class="empty">No data yet. The WGC scrape either hasn\'t run or hasn\'t landed - add quarters to data/wgc_manual.json to fill this in by hand.</div>'}</div></div>${warnHtml(d)}`;
   const hzEl = el.querySelector('#gold-hz');
   HZ_OPTIONS.forEach(([lbl, key]) => { const b = $(`<button aria-pressed="${key === goldHorizon}">${lbl}</button>`);
     b.onclick = () => { goldHorizon = key; hzEl.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
-      drawGoldRealChart(el.querySelector('#c-gold-real'), d); };
+      drawGoldRealChart(el.querySelector('#c-gold-real'), d);
+      if (d.series.corr60) drawGoldCorrChart(el.querySelector('#c-gold-corr'), d); };
     hzEl.appendChild(b); });
   drawGoldRealChart(el.querySelector('#c-gold-real'), d);
-  if (d.series.gold_5y) drawGold5yChart(el.querySelector('#c-gold-5y'), d.series.gold_5y);
+  if (d.series.corr60) drawGoldCorrChart(el.querySelector('#c-gold-corr'), d);
   if (q.length) drawWgcStackedChart(el.querySelector('#c-wgc'), q);
 }
 function drawFrontier(el) {
@@ -429,7 +432,7 @@ const PANELS = [['korea_fx', 'Korea FX', 'USD/KRW and the Bank of Korea', drawKo
 
 function render() {
   charts.splice(0).forEach(c => c.destroy());
-  goldChart = null; nokOilChart = null; nokOilCorrChart = null;
+  goldChart = null; goldCorrChart = null; nokOilChart = null; nokOilCorrChart = null;
   const host = document.getElementById('panels'); host.innerHTML = '';
   drawPositions();
   for (const [key, title, blurb, fn] of PANELS) { const el = panelShell(key, title, blurb); host.appendChild(el); fn(el.querySelector('.body')); }

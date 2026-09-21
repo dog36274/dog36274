@@ -705,15 +705,18 @@ def panel_us():
 
 def panel_gold():
     p = Panel()
-    # Fetched at 5y so the same series covers both the 2y (KEEP_POINTS-truncated) gold
-    # vs real-yield chart and the standalone 5y gold price chart below - one fetch,
-    # not two (Stooq itself already returns full history; this only widens the Yahoo
-    # fallback, which is what's actually serving this series right now).
-    gold = stooq("xauusd", years=5)
+    gold = stooq("xauusd")
     real = fred("DFII10")
     p.snap.update(gold=last(gold)[0], real10=last(real)[0])
-    p.data = {"latest": {"gold": last(gold), "real10": last(real)},
-              "series": {"gold": pairs(gold), "real10": pairs(real), "gold_5y": pairs(gold, 1400)}}
+    df = pd.concat([gold, real], axis=1, keys=["gold", "real10"]).ffill().dropna()
+    ret = pd.DataFrame({"gold": df["gold"].pct_change(), "real10": df["real10"].diff()}).dropna()
+    corr = ret["gold"].rolling(60).corr(ret["real10"]).dropna()
+    if len(corr):
+        p.snap["gold_real_corr60"] = float(corr.iloc[-1])
+    p.data = {"corr_method": "rolling 60-day correlation of gold daily % return vs daily change in 10Y real yield (pp)",
+              "latest": {"gold": last(gold), "real10": last(real),
+                        "corr60": round(float(corr.iloc[-1]), 3) if len(corr) else None},
+              "series": {"gold": pairs(gold), "real10": pairs(real), "corr60": pairs(corr)}}
     p.data["wgc"] = wgc_data(p)
     return p
 
