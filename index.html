@@ -118,9 +118,11 @@ const crosshair = { id: 'crosshair', afterDatasetsDraw(c) {
 
 function cut(pairs) { return pairs.slice(-Math.min(rangeN, pairs.length)); }
 
-/* datasets: [{label, pairs:[[date,val]], color, step?}] ; time-series line chart, single y axis */
+/* datasets: [{label, pairs:[[date,val]], color, step?, raw?:[[date,actualVal]], rawDec?, rawUnit?, rawPrefix?}]
+   time-series line chart, single y axis. `raw` (with optional rawDec/rawUnit/rawPrefix) lets a dataset plot one
+   thing (e.g. indexed-to-100) but show a different actual value in the tooltip, keyed by the same date labels. */
 function lineChart(canvas, datasets, {dec = 2, unit = '', zero = false, sets} = {}) {
-  const cutd = datasets.map(d => ({...d, pairs: cut(d.pairs)}));
+  const cutd = datasets.map(d => ({...d, pairs: cut(d.pairs), rawMap: d.raw ? new Map(d.raw) : null}));
   const labels = [...new Set(cutd.flatMap(d => d.pairs.map(p => p[0])))].sort();
   const ds = cutd.map(d => { const m = new Map(d.pairs);
     return { label: d.label, data: labels.map(l => m.has(l) ? m.get(l) : null), borderColor: css(d.color), backgroundColor: css(d.color),
@@ -132,7 +134,11 @@ function lineChart(canvas, datasets, {dec = 2, unit = '', zero = false, sets} = 
       scales: { x: { ticks: { maxTicksLimit: 6, maxRotation: 0, color: css('--text-3'), font: {size: 10} }, grid: { display: false }, border: { color: css('--grid') } },
                 y: { beginAtZero: zero, grace: '5%', ticks: { color: css('--text-3'), font: {size: 10}, callback: v => fmt(v, dec) }, grid: { color: css('--grid') }, border: { display: false } } },
       plugins: { legend: { display: ds.length > 1, position: 'bottom', labels: { color: css('--text-2'), boxWidth: 10, boxHeight: 3, font: {size: 11} } },
-        tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${fmt(c.parsed.y, dec)}${unit}` } } } } });
+        tooltip: { callbacks: { label: c => {
+          const src = cutd[c.datasetIndex], rv = src.rawMap?.get(c.label);
+          if (rv != null) return ` ${c.dataset.label}: ${src.rawPrefix || ''}${fmt(rv, src.rawDec ?? dec)}${src.rawUnit || ''}`;
+          return ` ${c.dataset.label}: ${fmt(c.parsed.y, dec)}${unit}`;
+        } } } } } });
   charts.push(ch); return ch;
 }
 
@@ -176,7 +182,7 @@ function indexTo100(datasets) {
   return datasets.map(ds => {
     const p = cut(ds.pairs || []);
     const base = p[0]?.[1];
-    return { ...ds, pairs: base ? p.map(([dt, v]) => [dt, (v / base) * 100]) : [] };
+    return { ...ds, pairs: base ? p.map(([dt, v]) => [dt, (v / base) * 100]) : [], raw: p };
   });
 }
 function drawKorea(el) {
@@ -205,13 +211,13 @@ function drawKorea(el) {
         scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 6, color: css('--text-3'), font: {size: 10} } },
                   y: { grid: { color: css('--grid') }, border: { display: false }, ticks: { color: css('--text-3'), font: {size: 10} } } } } })); }
   if (hasKrEq) lineChart(el.querySelector('#c-kr-eq'), indexTo100([
-    {label: 'KOSPI', pairs: d.series.kospi, color: '--s1'},
-    {label: 'Samsung Electronics', pairs: d.series.samsung, color: '--s2'},
-    {label: 'SK Hynix', pairs: d.series.sk_hynix, color: '--s3'}]), {dec: 1});
+    {label: 'KOSPI', pairs: d.series.kospi, color: '--s1', rawDec: 1},
+    {label: 'Samsung Electronics', pairs: d.series.samsung, color: '--s2', rawDec: 0, rawUnit: ' KRW'},
+    {label: 'SK Hynix', pairs: d.series.sk_hynix, color: '--s3', rawDec: 0, rawUnit: ' KRW'}]), {dec: 1});
   if (hasTw) lineChart(el.querySelector('#c-tw'), indexTo100([
-    {label: 'USD/TWD', pairs: d.series.usdtwd, color: '--s1'},
-    {label: 'TSMC', pairs: d.series.tsmc, color: '--s2'},
-    {label: 'TAIEX', pairs: d.series.taiex, color: '--s3'}]), {dec: 1});
+    {label: 'USD/TWD', pairs: d.series.usdtwd, color: '--s1', rawDec: 3},
+    {label: 'TSMC', pairs: d.series.tsmc, color: '--s2', rawDec: 2, rawPrefix: '$'},
+    {label: 'TAIEX', pairs: d.series.taiex, color: '--s3', rawDec: 1}]), {dec: 1});
 }
 function addRefLines(ch, lines) {   // dashed horizontal reference lines (entry / target)
   ch.config.plugins.push({ id: 'refs' + Math.random(), afterDatasetsDraw(c) {
@@ -543,7 +549,7 @@ function drawPositions() {
 }
 
 /* ---------- render ---------- */
-const PANELS = [['korea_fx', 'Korea FX', 'USD/KRW and the Bank of Korea', drawKorea], ['us_rates', 'US Rates & the Fed', '', drawUS],
+const PANELS = [['korea_fx', 'East Asia FX', 'USD/KRW and the Bank of Korea', drawKorea], ['us_rates', 'US Rates & the Fed', '', drawUS],
   ['gold_real_yields', 'Gold & Real Yields', '', drawGold], ['frontier', 'Frontier Markets', '', drawFrontier],
   ['nok_oil', 'NOK/EUR & Oil', '', drawNokOil], ['uk_gilts', 'UK Gilts', '', drawUK]];
 
