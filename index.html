@@ -296,7 +296,8 @@ function drawUS(el) {
   const L = d.latest, dots = d.dot_plots || [];
   if (fedDotIdx >= dots.length) fedDotIdx = 0;
   const dp = dots[fedDotIdx];
-  const rateTiles = [...dots].reverse().map(m => tile(meetingLabel(m.release_date), m.policy_rate == null ? '–' : fmt(m.policy_rate, 2) + '%')).join('');
+  const rateTile = dp => `<div class="tile"><div class="v">${dp.policy_rate == null ? '–' : fmt(dp.policy_rate, 2) + '%'}</div>
+    <div class="k">Policy rate at selected meeting · ${esc(meetingLabel(dp.release_date))}</div></div>`;
   el.innerHTML = `<div class="tiles">${tile('UST 2Y', fmt(first(L.ust2)) + '%', asOf(L.ust2))}${tile('UST 10Y', fmt(first(L.ust10)) + '%', asOf(L.ust10))}${L.ust30 ? tile('UST 30Y', fmt(first(L.ust30)) + '%', asOf(L.ust30)) : ''}
     ${tile('2s10s', fmt(L.curve_2s10s_bp, 0) + 'bp')}${L.cpi_yoy ? tile('CPI YoY', fmt(first(L.cpi_yoy)) + '%', asOf(L.cpi_yoy)) : ''}${L.core_pce_yoy ? tile('Core PCE YoY', fmt(first(L.core_pce_yoy)) + '%', asOf(L.core_pce_yoy)) : ''}</div>
     ${rateBox('Fed funds (effective)', d.fed)}
@@ -307,14 +308,11 @@ function drawUS(el) {
       + 'as spending shifts between goods, so it typically runs a bit below CPI. "Core" excludes food '
       + 'and energy in both.</div>') : ''}</div>
     ${dots.length ? `<div class="chart">
-      <h3 style="margin:0 0 4px">Policy rate at each SEP release</h3>
-      <div class="tiles">${rateTiles}</div>
-    </div>
-    <div class="chart">
       <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px">
         <h3 style="margin:0">FOMC dot plot distribution</h3>
         <select id="feddot-select" aria-label="FOMC meeting"></select>
       </div>
+      <div class="tiles" id="feddot-rate" style="max-width:260px">${rateTile(dp)}</div>
       <div class="box"><canvas id="c-feddot" role="img" aria-label="FOMC dot plot distribution"></canvas></div>
       <div class="warn" id="feddot-caption">${esc(fedDotCaption(dp))}</div>
     </div>` : ''}${warnHtml(d)}`;
@@ -331,6 +329,7 @@ function drawUS(el) {
     const sel = el.querySelector('#feddot-select');
     dots.forEach((m, i) => sel.appendChild($(`<option value="${i}" ${i === fedDotIdx ? 'selected' : ''}>${esc(meetingLabel(m.release_date))}</option>`)));
     sel.onchange = () => { fedDotIdx = +sel.value; const ndp = dots[fedDotIdx];
+      el.querySelector('#feddot-rate').innerHTML = rateTile(ndp);
       el.querySelector('#feddot-caption').textContent = fedDotCaption(ndp);
       drawFedDotChart(el.querySelector('#c-feddot'), ndp); };
     drawFedDotChart(el.querySelector('#c-feddot'), dp);
