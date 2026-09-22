@@ -274,7 +274,9 @@ DEMO_BASE = {"usdkrw": (1440, .004), "xauusd": (3900, .009), "emb.us": (92, .003
              "fred:CPIAUCSL": (320, .0003), "fred:DFII10": (1.8, .012), "bok": (2.5, 0),
              "boe:IUDBEDR": (3.75, 0), "boe:IUDSNPY": (3.9, .01), "boe:IUDMNPY": (4.5, .008),
              "boe:IUDLNPY": (5.1, .006), "boe:gilt30": (5.3, .006),
-             "eurnok": (11.7, .003), "oil_brent": (78, .015)}
+             "eurnok": (11.7, .003), "oil_brent": (78, .015),
+             "kospi": (3100, .009), "samsung": (85000, .012), "sk_hynix": (280000, .018),
+             "usdtwd": (31.5, .003), "tsmc": (215, .015), "taiex": (24000, .01)}
 
 
 def demo_series(name):
@@ -560,58 +562,6 @@ def wgc_data(p):
     return {**manual, "quarters": quarters, "scraped_count": len(scraped)}
 
 
-HF_ORGS = ("LGAI-EXAONE", "upstage", "kakaobrain")   # major Korean-developed-LLM orgs on HF
-
-
-def hf_org_downloads(org):
-    """Sum of `downloads` (Hugging Face's own rolling ~30-day count) across every
-    model a Hugging Face org/user publishes. No key needed - api.huggingface.co
-    (actually huggingface.co/api) is a public, unauthenticated read API."""
-    if DEMO:
-        rng = np.random.default_rng(zlib.crc32(org.encode()) % (2**31))
-        return int(30_000 + rng.integers(0, 40_000))
-    models = http_get("https://huggingface.co/api/models", params={"author": org, "limit": 200}).json()
-    if not isinstance(models, list):
-        raise RuntimeError(f"HF api/models?author={org}: unexpected response {str(models)[:200]!r}")
-    return sum(m.get("downloads", 0) or 0 for m in models)
-
-
-def hf_llm_downloads_snapshot():
-    """Today's total HF downloads across HF_ORGS. Not DEMO-guarded itself (callers
-    check DEMO) since hf_org_downloads() already handles it per-org."""
-    total, notes = 0, []
-    for org in HF_ORGS:
-        try:
-            total += hf_org_downloads(org)
-        except Exception as e:  # noqa: BLE001
-            notes.append(f"{org}: {e}")
-    if notes:
-        raise RuntimeError("; ".join(notes))
-    return total
-
-
-def hf_downloads_series(p):
-    """Hugging Face's public API only exposes a current download snapshot, not
-    history, so - unlike every other series in this file - there's nothing to
-    backfill. This accumulates one point per calendar day into a small running
-    history file; the series starts short and grows one point per daily run."""
-    if DEMO:
-        idx = pd.bdate_range(end=TODAY, periods=60)
-        rng = np.random.default_rng(11)
-        base = sum(hf_org_downloads(o) for o in HF_ORGS)
-        vals = np.maximum(0, base + np.cumsum(rng.normal(0, max(base * 0.02, 1), len(idx))))
-        return [[d.strftime("%Y-%m-%d"), round(float(v))] for d, v in zip(idx, vals)]
-    path = ROOT / "data" / "hf_downloads_history.json"
-    hist = read_json(path, {}) or {}
-    today_val = p.optional("HF LLM downloads", hf_llm_downloads_snapshot)
-    if today_val is not None:
-        hist[TODAY.isoformat()] = today_val
-        for d in sorted(hist)[:-1825]:   # ~5y cap, generous - this grows ~1 point/day
-            del hist[d]
-        path.write_text(json.dumps(hist, indent=1))
-    return [[d, hist[d]] for d in sorted(hist)]
-
-
 def scrape_krx_foreign_net_buy():
     """Best-effort scrape of KRX's daily foreign-investor net buying value for
     KOSPI (data.krx.co.kr). KRX's data portal doesn't expose a simple REST
@@ -655,54 +605,29 @@ def scrape_krx_foreign_net_buy():
                        f"bld candidates from those scripts={js_hits}")
 
 
-def fomc_dot_plot():
-    """Best-effort scrape of the FOMC's quarterly Summary of Economic Projections
-    (SEP) - the federal funds rate "dot plot" path, published four times a year
-    (Mar/Jun/Sep/Dec) on federalreserve.gov. Median, central tendency (middle ~70%
-    of participants, i.e. excluding the 3 highest and 3 lowest) and range (full
-    min-max across all participants) are all scraped - that's the real distribution
-    the SEP table publishes. The full anonymized scatter of every individual
-    participant's own dot is published solely in the SEP PDF's appendix table, not
-    as structured HTML/CSV data, so it isn't available to a scraper like this one.
-    Finds the current release by scanning the FOMC calendar page's own links rather
-    than guessing a meeting-date-stamped URL (fomcprojtabl<YYYYMMDD>.htm) that
-    would go stale every quarter."""
-    if DEMO:
-        yr = TODAY.year
-        years = [str(yr), str(yr + 1), str(yr + 2), "longer run"]
-        median = {years[0]: 4.125, years[1]: 3.625, years[2]: 3.375, years[3]: 3.0}
-        return {"release_date": TODAY.isoformat(), "median": median,
-               "central_tendency": {y: [v - 0.125, v + 0.125] for y, v in median.items()},
-               "range": {y: [v - 0.375, v + 0.375] for y, v in median.items()}}
-    cal = http_get("https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm")
-    matches = re.findall(r'href="(/monetarypolicy/fomcprojtabl(\d{8})\.htm)"', cal.text, re.I)
-    if not matches:
-        snippet = re.sub(r"\s+", " ", cal.text)[:400]
-        raise RuntimeError(f"FOMC SEP: no fomcprojtabl links found on the calendar page "
-                           f"(status {cal.status_code}); body {snippet!r}")
-    # Pick by the date embedded in the URL, not page order - the calendar page
-    # lists meetings oldest-first, so the first regex match was a stale (March)
-    # release instead of the most recent one.
-    path, _ = max(matches, key=lambda m: m[1])
-    url = f"https://www.federalreserve.gov{path}"
-    r = http_get(url)
-    # pd.read_html kept raising "'float' object has no attribute 'lower'" from
-    # somewhere inside its own type-inference on this page's tables, even with
-    # header=None - not a header-parsing issue after all. Walking the raw HTML
-    # with lxml instead guarantees plain Python strings for every cell (via
-    # .text_content()), sidestepping whatever internal pandas quirk that was.
+def _parse_sep_table(html_bytes, release_year):
+    """Parse one FOMC Summary of Economic Projections (SEP) page into median,
+    central tendency (middle ~70% of participants) and range (full min-max) for
+    the federal funds rate. Shared by every meeting fomc_dot_plot_history() fetches.
+
+    pd.read_html kept raising "'float' object has no attribute 'lower'" from
+    somewhere inside its own type-inference on this page's tables, even with
+    header=None - not a header-parsing issue after all. Walking the raw HTML
+    with lxml instead guarantees plain Python strings for every cell (via
+    .text_content()), sidestepping whatever internal pandas quirk that was.
+
+    Confirmed live: there's no separate "Median" sub-row - the row labeled
+    exactly "Federal funds rate" has, after the label, 3 equal-length blocks in
+    this order: median (bare numbers, e.g. "4.1"), central tendency (ranges,
+    e.g. "4.1-4.4"), then range (ranges again, wider). Block length = however
+    many projection years this release covers (year-by-year plus "longer run")."""
     import lxml.html
-    tree = lxml.html.fromstring(r.content)
+    tree = lxml.html.fromstring(html_bytes)
     tables = []
     for table_el in tree.xpath("//table"):
         rows = [[c.text_content().strip() for c in tr.xpath("./td | ./th")]
                for tr in table_el.xpath(".//tr")]
         tables.append([row for row in rows if row])
-    # Confirmed live: there's no separate "Median" sub-row - the row labeled
-    # exactly "Federal funds rate" has, after the label, 3 equal-length blocks in
-    # this order: median (bare numbers, e.g. "4.1"), central tendency (ranges,
-    # e.g. "4.1-4.4"), then range (ranges again, wider). Block length = however
-    # many projection years this release covers (year-by-year plus "longer run").
     range_re = re.compile(r"(-?[\d.]+)\s*[–—-]\s*(-?[\d.]+)")
     for rows in tables:
         for row in rows:
@@ -711,7 +636,7 @@ def fomc_dot_plot():
                 nums = _numbers(vals)
                 n = len(nums)
                 if nums and len(vals) >= n * 3:
-                    years = [str(TODAY.year + k) for k in range(n - 1)] + ["longer run"]
+                    years = [str(release_year + k) for k in range(n - 1)] + ["longer run"]
                     def block(cells):
                         out = {}
                         for y, c in zip(years, cells):
@@ -719,8 +644,7 @@ def fomc_dot_plot():
                             if m:
                                 out[y] = [float(m.group(1)), float(m.group(2))]
                         return out
-                    return {"release_date": TODAY.isoformat(), "source_url": url,
-                           "median": dict(zip(years, nums)),
+                    return {"median": dict(zip(years, nums)),
                            "central_tendency": block(vals[n:2 * n]),
                            "range": block(vals[2 * n:3 * n])}
     # Nothing matched a "Federal funds rate" row with parseable numbers - show
@@ -728,9 +652,68 @@ def fomc_dot_plot():
     # just row counts, so the real row/column layout is visible for the next fix.
     candidates = [{"table": ti, "rows": rows[:20]} for ti, rows in enumerate(tables)
                  if any("federal" in c.lower() for row in rows for c in row)]
-    raise RuntimeError(f"FOMC SEP {url}: fetched {len(tables)} tables, none matched the exact "
-                       f"'Federal funds rate' -> 'Median' row pattern; tables mentioning "
-                       f"'federal' anywhere ({len(candidates)} of them): {candidates[:2]}")
+    raise RuntimeError(f"fetched {len(tables)} tables, none matched the exact 'Federal funds "
+                       f"rate' -> 'Median' row pattern; tables mentioning 'federal' anywhere "
+                       f"({len(candidates)} of them): {candidates[:2]}")
+
+
+def fomc_dot_plot_history(dff, p, n=8):
+    """Best-effort scrape of the FOMC's quarterly Summary of Economic Projections
+    (SEP) - the federal funds rate "dot plot" path, published four times a year
+    (Mar/Jun/Sep/Dec) on federalreserve.gov - for the most recent `n` releases, so
+    the dashboard can let the user flip between meetings. The full anonymized
+    scatter of every individual participant's own dot is published solely in the
+    SEP PDF's appendix table, not as structured HTML/CSV data, so it isn't
+    available to a scraper like this one.
+
+    Finds releases by scanning the FOMC calendar page's own links rather than
+    guessing meeting-date-stamped URLs (fomcprojtabl<YYYYMMDD>.htm) that would go
+    stale every quarter, and takes the release date straight from that link
+    (YYYYMMDD) rather than the fetch date, so each entry is dated correctly
+    however far back it goes. `dff` (the daily effective fed funds rate series,
+    already fetched by panel_us) is used to look up the actual policy rate in
+    effect at each release, entirely client-side of the SEP scrape."""
+    if DEMO:
+        out = []
+        for i in range(n):
+            release_year = TODAY.year - (i // 4)
+            release_date = (pd.Timestamp(TODAY) - pd.DateOffset(months=3 * i)).date().isoformat()
+            years = [str(release_year + k) for k in range(3)] + ["longer run"]
+            base = 4.5 - i * 0.15
+            median = {years[0]: round(base, 3), years[1]: round(base - 0.4, 3),
+                     years[2]: round(base - 0.7, 3), years[3]: 3.0}
+            asof = dff[dff.index <= release_date]
+            out.append({"release_date": release_date, "median": median,
+                       "central_tendency": {y: [round(v - 0.125, 3), round(v + 0.125, 3)] for y, v in median.items()},
+                       "range": {y: [round(v - 0.375, 3), round(v + 0.375, 3)] for y, v in median.items()},
+                       "policy_rate": round(float(asof.iloc[-1]), 2) if len(asof) else None})
+        return out
+    cal = http_get("https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm")
+    matches = re.findall(r'href="(/monetarypolicy/fomcprojtabl(\d{8})\.htm)"', cal.text, re.I)
+    if not matches:
+        snippet = re.sub(r"\s+", " ", cal.text)[:400]
+        raise RuntimeError(f"FOMC SEP: no fomcprojtabl links found on the calendar page "
+                           f"(status {cal.status_code}); body {snippet!r}")
+    # Newest first, by the date embedded in the URL rather than page order - the
+    # calendar page lists meetings oldest-first per year.
+    uniq = sorted(set(matches), key=lambda m: m[1], reverse=True)[:n]
+    out = []
+    for path, datestr in uniq:
+        url = f"https://www.federalreserve.gov{path}"
+        release_date = f"{datestr[:4]}-{datestr[4:6]}-{datestr[6:]}"
+        try:
+            r = http_get(url)
+            parsed = _parse_sep_table(r.content, int(datestr[:4]))
+            asof = dff[dff.index <= release_date]
+            parsed["policy_rate"] = round(float(asof.iloc[-1]), 2) if len(asof) else None
+            parsed["release_date"] = release_date
+            parsed["source_url"] = url
+            out.append(parsed)
+        except Exception as e:  # noqa: BLE001
+            p.warnings.append(f"FOMC SEP {release_date}: {e}")
+    if not out:
+        raise RuntimeError(f"none of {len(uniq)} candidate SEP releases parsed - see per-release warnings above")
+    return out
 
 
 # --------------------------------- panels -----------------------------------
@@ -749,10 +732,20 @@ def panel_korea():
     if krx is not None and len(krx):
         p.data["series"]["kospi_foreign_net"] = pairs(krx, 1400)
         p.data["latest"]["kospi_foreign_net"] = last(krx)
-    hf = hf_downloads_series(p)
-    if hf:
-        p.data["series"]["hf_downloads"] = hf
-        p.data["latest"]["hf_downloads"] = [hf[-1][1], hf[-1][0]]   # series pairs are [date, value]; latest.* is [value, date]
+    # Korean large-cap equities (index points and KRW share prices - very
+    # different absolute scales from USD/KRW and from each other), and their
+    # Taiwanese chip-supply-chain counterparts. The frontend indexes each group
+    # to 100 rather than plotting raw levels, so they read on one shared scale.
+    for key, label, yf_symbol in [("kospi", "KOSPI index", "^KS11"),
+                                  ("samsung", "Samsung Electronics", "005930.KS"),
+                                  ("sk_hynix", "SK Hynix", "000660.KS"),
+                                  ("usdtwd", "USD/TWD", "TWD=X"),
+                                  ("tsmc", "TSMC", "TSM"),
+                                  ("taiex", "TAIEX", "^TWII")]:
+        s = p.optional(label, lambda sym=yf_symbol, k=key: yahoo_finance(k, years=2, yf_symbol=sym))
+        if s is not None and len(s):
+            p.data["series"][key] = pairs(s)
+            p.data["latest"][key] = last(s)
     return p
 
 
@@ -799,7 +792,7 @@ def panel_us():
             continue
         p.data["series"][key] = pairs(yoy, 60)
         p.data["latest"][key] = [round(float(yoy.iloc[-1]), 2), yoy.index[-1].strftime("%Y-%m-%d")]
-    p.data["dot_plot"] = p.optional("FOMC dot plot", fomc_dot_plot)
+    p.data["dot_plots"] = p.optional("FOMC dot plot history", lambda: fomc_dot_plot_history(dff, p))
     return p
 
 

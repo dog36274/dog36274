@@ -43,7 +43,7 @@
   .banner { background: var(--surface); border: 1px solid var(--s2); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 13px; }
   .toolbar { display: flex; gap: 6px; margin: 0 0 12px; align-items: center; flex-wrap: wrap; }
   .toolbar .lbl { color: var(--text-2); font-size: 12px; margin-right: 4px; }
-  button { font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border);
+  button, select { font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border);
            background: var(--surface); color: var(--text-2); cursor: pointer; }
   button[aria-pressed="true"] { color: var(--text); border-color: var(--text-3); font-weight: 600; }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
@@ -167,17 +167,31 @@ function panelShell(key, title, blurb) {
 const warnHtml = (d) => d?.warnings?.length ? `<div class="warn">Notes: ${d.warnings.map(esc).join(' · ')}</div>` : '';
 
 /* ---------- panels ---------- */
+/* Series of very different absolute magnitudes (an FX rate, index points, KRW/USD
+   share prices) can't share a y-axis at their raw levels, so each is rebased to
+   100 at the first point of whatever window is currently on screen (the global
+   Range toolbar) - a standard "relative performance" read, and it lets one
+   lineChart() call (single shared axis) carry all of them. */
+function indexTo100(datasets) {
+  return datasets.map(ds => {
+    const p = cut(ds.pairs || []);
+    const base = p[0]?.[1];
+    return { ...ds, pairs: base ? p.map(([dt, v]) => [dt, (v / base) * 100]) : [] };
+  });
+}
 function drawKorea(el) {
   const d = D.korea_fx; if (!d) return missing(el);
   const L = d.latest;
   const kospiT = L.kospi_foreign_net ? tile('KOSPI foreign net buy', (first(L.kospi_foreign_net) >= 0 ? '+' : '') + fmt(first(L.kospi_foreign_net), 0), asOf(L.kospi_foreign_net)) : '';
-  const hfT = L.hf_downloads ? tile('Korean LLM downloads (HF)', fmt(first(L.hf_downloads), 0), asOf(L.hf_downloads)) : '';
-  el.innerHTML = `<div class="tiles">${tile('USD/KRW', fmt(L.usdkrw, 1), L.as_of)}${kospiT}${hfT}</div>
+  const hasKrEq = d.series.kospi && d.series.samsung && d.series.sk_hynix;
+  const hasTw = d.series.usdtwd && d.series.tsmc && d.series.taiex;
+  el.innerHTML = `<div class="tiles">${tile('USD/KRW', fmt(L.usdkrw, 1), L.as_of)}${kospiT}</div>
     ${d.bok ? rateBox('BoK base rate', d.bok) : ''}
     <div class="charts">${chartBox('USD/KRW spot', 'c-usdkrw', tableView([{label: 'USD/KRW', pairs: cut(d.series.usdkrw)}], 1))}
     ${d.series.bok_rate ? chartBox('BoK base rate (%), decisions only', 'c-bok') : ''}
     ${d.series.kospi_foreign_net ? chartBox('KOSPI foreign investor net buy/sell (daily)', 'c-kospi-foreign') : ''}
-    ${d.series.hf_downloads ? chartBox('Korean LLM downloads on Hugging Face (daily snapshot)', 'c-hf') : ''}</div>${warnHtml(d)}`;
+    ${hasKrEq ? chartBox('KOSPI, Samsung, SK Hynix (indexed to 100)', 'c-kr-eq') : ''}
+    ${hasTw ? chartBox('USD/TWD, TSMC, TAIEX (indexed to 100)', 'c-tw') : ''}</div>${warnHtml(d)}`;
   const tg = Object.values(D.positions || {}).find(p => p.detail?.series === 'usdkrw' && p.detail?.target);
   const ch = lineChart(el.querySelector('#c-usdkrw'), [{label: 'USD/KRW', pairs: d.series.usdkrw, color: '--s1'}], {dec: 1});
   if (tg) addRefLines(ch, [['Entry', tg.detail.entry_level], ['Target', tg.detail.target]]);
@@ -190,7 +204,14 @@ function drawKorea(el) {
         tooltip: { callbacks: { label: c => ` ${c.parsed.y >= 0 ? '+' : ''}${fmt(c.parsed.y, 0)}` } } },
         scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 6, color: css('--text-3'), font: {size: 10} } },
                   y: { grid: { color: css('--grid') }, border: { display: false }, ticks: { color: css('--text-3'), font: {size: 10} } } } } })); }
-  if (d.series.hf_downloads) lineChart(el.querySelector('#c-hf'), [{label: 'HF downloads', pairs: d.series.hf_downloads, color: '--s3'}], {dec: 0});
+  if (hasKrEq) lineChart(el.querySelector('#c-kr-eq'), indexTo100([
+    {label: 'KOSPI', pairs: d.series.kospi, color: '--s1'},
+    {label: 'Samsung Electronics', pairs: d.series.samsung, color: '--s2'},
+    {label: 'SK Hynix', pairs: d.series.sk_hynix, color: '--s3'}]), {dec: 1});
+  if (hasTw) lineChart(el.querySelector('#c-tw'), indexTo100([
+    {label: 'USD/TWD', pairs: d.series.usdtwd, color: '--s1'},
+    {label: 'TSMC', pairs: d.series.tsmc, color: '--s2'},
+    {label: 'TAIEX', pairs: d.series.taiex, color: '--s3'}]), {dec: 1});
 }
 function addRefLines(ch, lines) {   // dashed horizontal reference lines (entry / target)
   ch.config.plugins.push({ id: 'refs' + Math.random(), afterDatasetsDraw(c) {
@@ -211,8 +232,7 @@ function fomcRangePlugin(dp) {
     if (!dp) return;
     const g = c.ctx, ys = c.scales.y, xs = c.scales.x;
     Object.keys(dp.median).forEach(yr => {
-      if (yr === 'longer run') return;
-      const x = xs.getPixelForValue(`${yr}-12-31`);
+      const x = xs.getPixelForValue(yr);
       if (x == null || Number.isNaN(x)) return;
       const rng = dp.range?.[yr], ct = dp.central_tendency?.[yr];
       g.save();
@@ -224,59 +244,53 @@ function fomcRangePlugin(dp) {
     });
   }};
 }
-function drawFedDotChart(canvas, d) {
-  // The x-axis here is categorical (evenly-spaced by index, not real calendar
-  // time - Chart.js needs a date adapter for a true time scale, not loaded in
-  // this bundle), so mixing ~250 daily history points with a handful of future
-  // dot-plot points would squash those future years together at the far edge.
-  // The effective rate barely moves between meetings anyway, so thinning history
-  // to roughly weekly loses no real information and gives the dots proportional
-  // room; the most recent point is always kept so today's value stays exact.
-  const histFull = cut(d.series.dff || []);
-  const hist = histFull.filter((_, i) => i % 5 === 0 || i === histFull.length - 1);
-  const dp = d.dot_plot;
-  const yrs = dp ? Object.keys(dp.median).filter(y => y !== 'longer run') : [];
-  const dots = yrs.map(y => [`${y}-12-31`, dp.median[y]]);
-  // Hidden (invisible) datasets carrying the range bounds so Chart.js's own
-  // auto-scaling accounts for them - the plugin above draws the actual bars,
-  // these just make sure the y-axis is tall enough to show them.
-  const rangeLow = yrs.filter(y => dp.range?.[y]).map(y => [`${y}-12-31`, dp.range[y][0]]);
-  const rangeHigh = yrs.filter(y => dp.range?.[y]).map(y => [`${y}-12-31`, dp.range[y][1]]);
-  const labels = [...new Set([...hist.map(p => p[0]), ...dots.map(p => p[0])])].sort();
-  const histMap = new Map(hist), dotMap = new Map(dots), loMap = new Map(rangeLow), hiMap = new Map(rangeHigh);
-  const ch = new Chart(canvas, { type: 'line', plugins: [crosshair, fomcRangePlugin(dp)],
+let fedDotChart = null, fedDotIdx = 0;
+function drawFedDotChart(canvas, dp) {
+  if (fedDotChart) { const i = charts.indexOf(fedDotChart); if (i >= 0) charts.splice(i, 1); fedDotChart.destroy(); fedDotChart = null; }
+  if (!dp) return;
+  // A blank spacer category between each real year - Chart.js spaces categories
+  // evenly regardless of content, so an empty column widens the gap between
+  // neighbouring distributions without needing a numeric/linear x-axis.
+  const yrs = Object.keys(dp.median);
+  const labels = [];
+  yrs.forEach((y, i) => { labels.push(y); if (i < yrs.length - 1) labels.push(`__gap${i}`); });
+  const real = new Set(yrs);
+  fedDotChart = new Chart(canvas, { type: 'line', plugins: [crosshair, fomcRangePlugin(dp)],
     data: { labels, datasets: [
-      { label: 'Fed funds (effective)', data: labels.map(l => histMap.has(l) ? histMap.get(l) : null),
-        borderColor: css('--s1'), backgroundColor: css('--s1'), borderWidth: 2, pointRadius: 0, pointHoverRadius: 4,
-        pointHoverBorderWidth: 2, pointHoverBorderColor: css('--surface'), tension: 0, spanGaps: true, stepped: 'before' },
-      { label: 'FOMC dot plot (median)', data: labels.map(l => dotMap.has(l) ? dotMap.get(l) : null),
-        borderColor: css('--s2'), backgroundColor: css('--s2'), borderWidth: 0, pointRadius: 5, pointHoverRadius: 6,
+      { label: 'FOMC dot plot (median)', data: labels.map(l => real.has(l) ? dp.median[l] : null),
+        borderColor: css('--s2'), backgroundColor: css('--s2'), borderWidth: 0, pointRadius: 6, pointHoverRadius: 7,
         showLine: false, spanGaps: false },
-      { label: '_rangeLow', data: labels.map(l => loMap.has(l) ? loMap.get(l) : null), pointRadius: 0, borderWidth: 0, showLine: false },
-      { label: '_rangeHigh', data: labels.map(l => hiMap.has(l) ? hiMap.get(l) : null), pointRadius: 0, borderWidth: 0, showLine: false } ] },
-    options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
-      scales: { x: { ticks: { maxTicksLimit: 6, maxRotation: 0, color: css('--text-3'), font: {size: 10} }, grid: { display: false }, border: { color: css('--grid') } },
+      // Hidden (invisible) datasets carrying the range bounds so Chart.js's own
+      // auto-scaling accounts for them - the plugin above draws the actual bars.
+      { label: '_rangeLow', data: labels.map(l => dp.range?.[l] ? dp.range[l][0] : null), pointRadius: 0, borderWidth: 0, showLine: false },
+      { label: '_rangeHigh', data: labels.map(l => dp.range?.[l] ? dp.range[l][1] : null), pointRadius: 0, borderWidth: 0, showLine: false } ] },
+    options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'nearest', intersect: true },
+      scales: { x: { ticks: { autoSkip: false, maxRotation: 0, color: css('--text-3'), font: {size: 10},
+                  callback: function(v) { const l = this.getLabelForValue(v); return l.startsWith('__gap') ? '' : l; } },
+                  grid: { display: false }, border: { color: css('--grid') } },
                 y: { grace: '10%', ticks: { color: css('--text-3'), font: {size: 10}, callback: v => fmt(v, 2) + '%' }, grid: { color: css('--grid') }, border: { display: false } } },
-      plugins: { legend: { position: 'bottom', labels: { color: css('--text-2'), boxWidth: 10, boxHeight: 3, font: {size: 11}, filter: item => !item.text.startsWith('_') } },
+      plugins: { legend: { display: false },
         tooltip: { filter: item => !item.dataset.label.startsWith('_'),
           callbacks: { label: c => {
-            const yr = c.label.slice(0, 4);
-            const ct = dp?.central_tendency?.[yr], rng = dp?.range?.[yr];
-            if (c.dataset.label === 'FOMC dot plot (median)' && (ct || rng)) {
-              return [` Median: ${fmt(c.parsed.y, 2)}%`,
-                ct ? ` Central tendency: ${fmt(ct[0], 2)}-${fmt(ct[1], 2)}%` : '',
-                rng ? ` Range: ${fmt(rng[0], 2)}-${fmt(rng[1], 2)}%` : ''].filter(Boolean);
-            }
-            return ` ${c.dataset.label}: ${fmt(c.parsed.y, 2)}%`;
+            const yr = c.label;
+            const ct = dp.central_tendency?.[yr], rng = dp.range?.[yr];
+            return [` Median: ${fmt(c.parsed.y, 2)}%`,
+              ct ? ` Central tendency: ${fmt(ct[0], 2)}-${fmt(ct[1], 2)}%` : '',
+              rng ? ` Range: ${fmt(rng[0], 2)}-${fmt(rng[1], 2)}%` : ''].filter(Boolean);
           } } } } } });
-  charts.push(ch);
+  charts.push(fedDotChart);
 }
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const meetingLabel = iso => { const [y, m] = iso.split('-'); return `${MONTHS[+m - 1]} ${y}`; };
+const fedDotCaption = dp => `FOMC median path (${meetingLabel(dp.release_date)}): ${Object.entries(dp.median).map(([y, v]) => `${y} ${fmt(v, 2)}%`).join(' · ')}. `
+  + `Dot = median; bold bar = central tendency (middle ~70% of participants); light bar = full range. `
+  + `Individual participant dots aren't published as structured data, only in the SEP PDF's appendix.`;
 function drawUS(el) {
   const d = D.us_rates; if (!d) return missing(el);
-  const L = d.latest, dp = d.dot_plot;
-  const dotCaption = dp ? `FOMC median path (${dp.release_date}): ${Object.entries(dp.median).map(([y, v]) => `${y} ${fmt(v, 2)}%`).join(' · ')}. `
-    + `Dot = median; bold bar = central tendency (middle ~70% of participants); light bar = full range. `
-    + `Individual participant dots aren't published as structured data, only in the SEP PDF's appendix.` : '';
+  const L = d.latest, dots = d.dot_plots || [];
+  if (fedDotIdx >= dots.length) fedDotIdx = 0;
+  const dp = dots[fedDotIdx];
+  const rateTiles = [...dots].reverse().map(m => tile(meetingLabel(m.release_date), m.policy_rate == null ? '–' : fmt(m.policy_rate, 2) + '%')).join('');
   el.innerHTML = `<div class="tiles">${tile('UST 2Y', fmt(first(L.ust2)) + '%', asOf(L.ust2))}${tile('UST 10Y', fmt(first(L.ust10)) + '%', asOf(L.ust10))}${L.ust30 ? tile('UST 30Y', fmt(first(L.ust30)) + '%', asOf(L.ust30)) : ''}
     ${tile('2s10s', fmt(L.curve_2s10s_bp, 0) + 'bp')}${L.cpi_yoy ? tile('CPI YoY', fmt(first(L.cpi_yoy)) + '%', asOf(L.cpi_yoy)) : ''}${L.core_pce_yoy ? tile('Core PCE YoY', fmt(first(L.core_pce_yoy)) + '%', asOf(L.core_pce_yoy)) : ''}</div>
     ${rateBox('Fed funds (effective)', d.fed)}
@@ -285,8 +299,19 @@ function drawUS(el) {
       '<div class="warn">CPI (BLS): tracks a fixed basket of goods/services from a consumer survey. '
       + 'PCE (BEA, the Fed\'s preferred gauge, used for its 2% target): broader coverage and reweights '
       + 'as spending shifts between goods, so it typically runs a bit below CPI. "Core" excludes food '
-      + 'and energy in both.</div>') : ''}
-    ${d.series.dff ? chartBox('Fed funds rate & FOMC dot plot (median)', 'c-feddot', dotCaption ? `<div class="warn">${esc(dotCaption)}</div>` : '') : ''}</div>${warnHtml(d)}`;
+      + 'and energy in both.</div>') : ''}</div>
+    ${dots.length ? `<div class="chart">
+      <h3 style="margin:0 0 4px">Policy rate at each SEP release</h3>
+      <div class="tiles">${rateTiles}</div>
+    </div>
+    <div class="chart">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px">
+        <h3 style="margin:0">FOMC dot plot distribution</h3>
+        <select id="feddot-select" aria-label="FOMC meeting"></select>
+      </div>
+      <div class="box"><canvas id="c-feddot" role="img" aria-label="FOMC dot plot distribution"></canvas></div>
+      <div class="warn" id="feddot-caption">${esc(fedDotCaption(dp))}</div>
+    </div>` : ''}${warnHtml(d)}`;
   lineChart(el.querySelector('#c-ust'), [{label: '2Y', pairs: d.series.ust2, color: '--s1'}, {label: '10Y', pairs: d.series.ust10, color: '--s2'},
     ...(d.series.ust30 ? [{label: '30Y', pairs: d.series.ust30, color: '--s3'}] : [])], {unit: '%'});
   lineChart(el.querySelector('#c-curve'), [{label: '2s10s', pairs: d.series.curve_2s10s_bp, color: '--s1'}], {dec: 0, unit: 'bp'});
@@ -296,7 +321,14 @@ function drawUS(el) {
     ...(d.series.pce_yoy ? [{label: 'PCE', pairs: d.series.pce_yoy, color: '--s2'}] : []),
     ...(d.series.core_pce_yoy ? [{label: 'Core PCE', pairs: d.series.core_pce_yoy, color: '--s2', dash: [6, 3]}] : []),
   ], {unit: '%'});
-  if (d.series.dff) drawFedDotChart(el.querySelector('#c-feddot'), d);
+  if (dots.length) {
+    const sel = el.querySelector('#feddot-select');
+    dots.forEach((m, i) => sel.appendChild($(`<option value="${i}" ${i === fedDotIdx ? 'selected' : ''}>${esc(meetingLabel(m.release_date))}</option>`)));
+    sel.onchange = () => { fedDotIdx = +sel.value; const ndp = dots[fedDotIdx];
+      el.querySelector('#feddot-caption').textContent = fedDotCaption(ndp);
+      drawFedDotChart(el.querySelector('#c-feddot'), ndp); };
+    drawFedDotChart(el.querySelector('#c-feddot'), dp);
+  }
 }
 /* Gold vs inverted 10Y real yield: dual-axis by deliberate choice (not the usual single-
    axis rule) - the two series live on different units but have a well-known inverse
@@ -517,7 +549,7 @@ const PANELS = [['korea_fx', 'Korea FX', 'USD/KRW and the Bank of Korea', drawKo
 
 function render() {
   charts.splice(0).forEach(c => c.destroy());
-  goldChart = null; goldCorrChart = null; nokOilChart = null; nokOilCorrChart = null;
+  goldChart = null; goldCorrChart = null; nokOilChart = null; nokOilCorrChart = null; fedDotChart = null;
   const host = document.getElementById('panels'); host.innerHTML = '';
   drawPositions();
   for (const [key, title, blurb, fn] of PANELS) { const el = panelShell(key, title, blurb); host.appendChild(el); fn(el.querySelector('.body')); }
