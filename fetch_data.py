@@ -719,11 +719,14 @@ def fomc_dot_plot_history(dff, p, n=8):
 # --------------------------------- panels -----------------------------------
 def panel_korea():
     p = Panel()
-    fx = stooq("usdkrw")
+    # years=5 / pairs(..., 1400): this panel's FX-vs-equities charts offer a 5Y
+    # horizon option, so the underlying series need ~5.5y of daily points kept
+    # (the default pairs() cap only keeps ~2y) for that option to show real data.
+    fx = stooq("usdkrw", years=5)
     v, d = last(fx)
     p.snap["usdkrw"] = v
     p.data = {"latest": {"usdkrw": v, "as_of": d},
-              "series": {"usdkrw": pairs(fx)}}
+              "series": {"usdkrw": pairs(fx, 1400)}}
     bok = p.optional("BoK base rate", bok_base_rate)
     if bok is not None and len(bok):
         p.data["series"]["bok_rate"] = pairs(bok)
@@ -742,9 +745,9 @@ def panel_korea():
                                   ("usdtwd", "USD/TWD", "TWD=X"),
                                   ("tsmc", "TSMC", "TSM"),
                                   ("taiex", "TAIEX", "^TWII")]:
-        s = p.optional(label, lambda sym=yf_symbol, k=key: yahoo_finance(k, years=2, yf_symbol=sym))
+        s = p.optional(label, lambda sym=yf_symbol, k=key: yahoo_finance(k, years=5, yf_symbol=sym))
         if s is not None and len(s):
-            p.data["series"][key] = pairs(s)
+            p.data["series"][key] = pairs(s, 1400)
             p.data["latest"][key] = last(s)
     return p
 

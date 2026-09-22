@@ -54,6 +54,8 @@
   .tile .v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
   .tile .k { font-size: 11px; color: var(--text-2); }
   .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+  .ea-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  @media (max-width: 700px) { .ea-grid { grid-template-columns: 1fr; } }
   .chart h3 { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: var(--text-2); }
   .chart .box { position: relative; height: 210px; }
   .warn { color: var(--text-3); font-size: 11px; margin-top: 8px; }
@@ -120,9 +122,11 @@ function cut(pairs) { return pairs.slice(-Math.min(rangeN, pairs.length)); }
 
 /* datasets: [{label, pairs:[[date,val]], color, step?, raw?:[[date,actualVal]], rawDec?, rawUnit?, rawPrefix?}]
    time-series line chart, single y axis. `raw` (with optional rawDec/rawUnit/rawPrefix) lets a dataset plot one
-   thing (e.g. indexed-to-100) but show a different actual value in the tooltip, keyed by the same date labels. */
-function lineChart(canvas, datasets, {dec = 2, unit = '', zero = false, sets} = {}) {
-  const cutd = datasets.map(d => ({...d, pairs: cut(d.pairs), rawMap: d.raw ? new Map(d.raw) : null}));
+   thing (e.g. indexed-to-100) but show a different actual value in the tooltip, keyed by the same date labels.
+   `filterFn` overrides the default global-Range-toolbar `cut()` - pass e.g. p => filterHorizon(p, someLocalHorizon)
+   for a chart driven by its own panel-local horizon toggle instead of the page-wide one. */
+function lineChart(canvas, datasets, {dec = 2, unit = '', zero = false, filterFn = cut} = {}) {
+  const cutd = datasets.map(d => ({...d, pairs: filterFn(d.pairs), rawMap: d.raw ? new Map(d.raw) : null}));
   const labels = [...new Set(cutd.flatMap(d => d.pairs.map(p => p[0])))].sort();
   const ds = cutd.map(d => { const m = new Map(d.pairs);
     return { label: d.label, data: labels.map(l => m.has(l) ? m.get(l) : null), borderColor: css(d.color), backgroundColor: css(d.color),
@@ -175,32 +179,57 @@ const warnHtml = (d) => d?.warnings?.length ? `<div class="warn">Notes: ${d.warn
 /* ---------- panels ---------- */
 /* Series of very different absolute magnitudes (an FX rate, index points, KRW/USD
    share prices) can't share a y-axis at their raw levels, so each is rebased to
-   100 at the first point of whatever window is currently on screen (the global
-   Range toolbar) - a standard "relative performance" read, and it lets one
-   lineChart() call (single shared axis) carry all of them. */
-function indexTo100(datasets) {
+   100 at the first point of whatever window is on screen - a standard "relative
+   performance" read, and it lets one lineChart() call (single shared axis) carry
+   all of them. `filterFn` defaults to the global Range toolbar's cut(), same as
+   lineChart(), but callers driven by a panel-local horizon toggle pass their own. */
+function indexTo100(datasets, filterFn = cut) {
   return datasets.map(ds => {
-    const p = cut(ds.pairs || []);
+    const p = filterFn(ds.pairs || []);
     const base = p[0]?.[1];
     return { ...ds, pairs: base ? p.map(([dt, v]) => [dt, (v / base) * 100]) : [], raw: p };
   });
+}
+function drawEaCharts(el, d) {
+  const hz = p => filterHorizon(p, eaHorizon);
+  if (twdSpotChart) { const i = charts.indexOf(twdSpotChart); if (i >= 0) charts.splice(i, 1); twdSpotChart.destroy(); twdSpotChart = null; }
+  if (krwSpotChart) { const i = charts.indexOf(krwSpotChart); if (i >= 0) charts.splice(i, 1); krwSpotChart.destroy(); krwSpotChart = null; }
+  if (twEqChart) { const i = charts.indexOf(twEqChart); if (i >= 0) charts.splice(i, 1); twEqChart.destroy(); twEqChart = null; }
+  if (krEqChart) { const i = charts.indexOf(krEqChart); if (i >= 0) charts.splice(i, 1); krEqChart.destroy(); krEqChart = null; }
+  if (d.series.usdtwd) twdSpotChart = lineChart(el.querySelector('#c-twd-spot'), [{label: 'USD/TWD', pairs: d.series.usdtwd, color: '--s1'}], {dec: 3, filterFn: hz});
+  if (d.series.usdkrw) {
+    krwSpotChart = lineChart(el.querySelector('#c-krw-spot'), [{label: 'USD/KRW', pairs: d.series.usdkrw, color: '--s1'}], {dec: 1, filterFn: hz});
+    const tg = Object.values(D.positions || {}).find(p => p.detail?.series === 'usdkrw' && p.detail?.target);
+    if (tg) addRefLines(krwSpotChart, [['Entry', tg.detail.entry_level], ['Target', tg.detail.target]]);
+  }
+  if (d.series.tsmc && d.series.taiex) twEqChart = lineChart(el.querySelector('#c-tw-eq'), indexTo100([
+    {label: 'TSMC', pairs: d.series.tsmc, color: '--s2', rawDec: 2, rawPrefix: '$'},
+    {label: 'TAIEX', pairs: d.series.taiex, color: '--s3', rawDec: 1}], hz), {dec: 1, filterFn: hz});
+  if (d.series.kospi && d.series.samsung && d.series.sk_hynix) krEqChart = lineChart(el.querySelector('#c-kr-eq'), indexTo100([
+    {label: 'KOSPI', pairs: d.series.kospi, color: '--s1', rawDec: 1},
+    {label: 'Samsung Electronics', pairs: d.series.samsung, color: '--s2', rawDec: 0, rawUnit: ' KRW'},
+    {label: 'SK Hynix', pairs: d.series.sk_hynix, color: '--s3', rawDec: 0, rawUnit: ' KRW'}], hz), {dec: 1, filterFn: hz});
 }
 function drawKorea(el) {
   const d = D.korea_fx; if (!d) return missing(el);
   const L = d.latest;
   const kospiT = L.kospi_foreign_net ? tile('KOSPI foreign net buy', (first(L.kospi_foreign_net) >= 0 ? '+' : '') + fmt(first(L.kospi_foreign_net), 0), asOf(L.kospi_foreign_net)) : '';
-  const hasKrEq = d.series.kospi && d.series.samsung && d.series.sk_hynix;
-  const hasTw = d.series.usdtwd && d.series.tsmc && d.series.taiex;
-  el.innerHTML = `<div class="tiles">${tile('USD/KRW', fmt(L.usdkrw, 1), L.as_of)}${kospiT}</div>
+  el.innerHTML = `<div class="tiles">${kospiT}</div>
     ${d.bok ? rateBox('BoK base rate', d.bok) : ''}
-    <div class="charts">${chartBox('USD/KRW spot', 'c-usdkrw', tableView([{label: 'USD/KRW', pairs: cut(d.series.usdkrw)}], 1))}
-    ${d.series.bok_rate ? chartBox('BoK base rate (%), decisions only', 'c-bok') : ''}
-    ${d.series.kospi_foreign_net ? chartBox('KOSPI foreign investor net buy/sell (daily)', 'c-kospi-foreign') : ''}
-    ${hasKrEq ? chartBox('KOSPI, Samsung, SK Hynix (indexed to 100)', 'c-kr-eq') : ''}
-    ${hasTw ? chartBox('USD/TWD, TSMC, TAIEX (indexed to 100)', 'c-tw') : ''}</div>${warnHtml(d)}`;
-  const tg = Object.values(D.positions || {}).find(p => p.detail?.series === 'usdkrw' && p.detail?.target);
-  const ch = lineChart(el.querySelector('#c-usdkrw'), [{label: 'USD/KRW', pairs: d.series.usdkrw, color: '--s1'}], {dec: 1});
-  if (tg) addRefLines(ch, [['Entry', tg.detail.entry_level], ['Target', tg.detail.target]]);
+    <div class="chart">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px">
+        <h3 style="margin:0">FX &amp; equities - Taiwan &amp; Korea</h3>
+        <div class="toolbar" id="ea-hz" style="margin:0"></div>
+      </div>
+    </div>
+    <div class="ea-grid">
+      <div>${tile('USD/TWD', fmt(first(L.usdtwd), 3), asOf(L.usdtwd))}<div class="chart"><div class="box"><canvas id="c-twd-spot" role="img" aria-label="USD/TWD spot"></canvas></div>${d.series.usdtwd ? tableView([{label: 'USD/TWD', pairs: cut(d.series.usdtwd)}], 3) : ''}</div></div>
+      <div>${tile('USD/KRW', fmt(L.usdkrw, 1), L.as_of)}<div class="chart"><div class="box"><canvas id="c-krw-spot" role="img" aria-label="USD/KRW spot"></canvas></div>${tableView([{label: 'USD/KRW', pairs: cut(d.series.usdkrw)}], 1)}</div></div>
+      <div class="chart"><h3>TSMC, TAIEX (indexed to 100)</h3><div class="box"><canvas id="c-tw-eq" role="img" aria-label="TSMC, TAIEX indexed to 100"></canvas></div></div>
+      <div class="chart"><h3>KOSPI, Samsung, SK Hynix (indexed to 100)</h3><div class="box"><canvas id="c-kr-eq" role="img" aria-label="KOSPI, Samsung, SK Hynix indexed to 100"></canvas></div></div>
+    </div>
+    <div class="charts">${d.series.bok_rate ? chartBox('BoK base rate (%), decisions only', 'c-bok') : ''}
+    ${d.series.kospi_foreign_net ? chartBox('KOSPI foreign investor net buy/sell (daily)', 'c-kospi-foreign') : ''}</div>${warnHtml(d)}`;
   if (d.series.bok_rate) lineChart(el.querySelector('#c-bok'), [{label: 'BoK base rate', pairs: d.series.bok_rate, color: '--s1', step: true}], {unit: '%'});
   if (d.series.kospi_foreign_net) { const kf = cut(d.series.kospi_foreign_net);
     charts.push(new Chart(el.querySelector('#c-kospi-foreign'), { type: 'bar',
@@ -210,14 +239,12 @@ function drawKorea(el) {
         tooltip: { callbacks: { label: c => ` ${c.parsed.y >= 0 ? '+' : ''}${fmt(c.parsed.y, 0)}` } } },
         scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 6, color: css('--text-3'), font: {size: 10} } },
                   y: { grid: { color: css('--grid') }, border: { display: false }, ticks: { color: css('--text-3'), font: {size: 10} } } } } })); }
-  if (hasKrEq) lineChart(el.querySelector('#c-kr-eq'), indexTo100([
-    {label: 'KOSPI', pairs: d.series.kospi, color: '--s1', rawDec: 1},
-    {label: 'Samsung Electronics', pairs: d.series.samsung, color: '--s2', rawDec: 0, rawUnit: ' KRW'},
-    {label: 'SK Hynix', pairs: d.series.sk_hynix, color: '--s3', rawDec: 0, rawUnit: ' KRW'}]), {dec: 1});
-  if (hasTw) lineChart(el.querySelector('#c-tw'), indexTo100([
-    {label: 'USD/TWD', pairs: d.series.usdtwd, color: '--s1', rawDec: 3},
-    {label: 'TSMC', pairs: d.series.tsmc, color: '--s2', rawDec: 2, rawPrefix: '$'},
-    {label: 'TAIEX', pairs: d.series.taiex, color: '--s3', rawDec: 1}]), {dec: 1});
+  const hzEl = el.querySelector('#ea-hz');
+  EA_HZ_OPTIONS.forEach(([lbl, key]) => { const b = $(`<button aria-pressed="${key === eaHorizon}">${lbl}</button>`);
+    b.onclick = () => { eaHorizon = key; hzEl.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
+      drawEaCharts(el, d); };
+    hzEl.appendChild(b); });
+  drawEaCharts(el, d);
 }
 function addRefLines(ch, lines) {   // dashed horizontal reference lines (entry / target)
   ch.config.plugins.push({ id: 'refs' + Math.random(), afterDatasetsDraw(c) {
@@ -342,14 +369,16 @@ function drawUS(el) {
    `grace`), so the two lines span a comparable share of the chart height regardless of
    their absolute units. */
 const HZ_OPTIONS = [['1M', '1m'], ['3M', '3m'], ['6M', '6m'], ['1Y', '1y'], ['YTD', 'ytd']];
+const EA_HZ_OPTIONS = [['1M', '1m'], ['3M', '3m'], ['YTD', 'ytd'], ['1Y', '1y'], ['5Y', '5y']];
 let goldHorizon = '1y', goldChart = null, goldCorrChart = null;
 let nokOilHorizon = '1y', nokOilChart = null, nokOilCorrChart = null;
+let eaHorizon = '1y', twdSpotChart = null, krwSpotChart = null, twEqChart = null, krEqChart = null;
 function filterHorizon(pairs, key) {
   if (!pairs || !pairs.length) return [];
   const last = new Date(pairs[pairs.length - 1][0]);
   let from;
   if (key === 'ytd') { from = new Date(Date.UTC(last.getUTCFullYear(), 0, 1)); }
-  else { from = new Date(last); from.setUTCMonth(from.getUTCMonth() - {'1m': 1, '3m': 3, '6m': 6, '1y': 12}[key]); }
+  else { from = new Date(last); from.setUTCMonth(from.getUTCMonth() - {'1m': 1, '3m': 3, '6m': 6, '1y': 12, '5y': 60}[key]); }
   return pairs.filter(p => new Date(p[0]) >= from);
 }
 function drawGoldRealChart(canvas, d) {
@@ -555,6 +584,7 @@ const PANELS = [['korea_fx', 'East Asia FX', 'USD/KRW and the Bank of Korea', dr
 function render() {
   charts.splice(0).forEach(c => c.destroy());
   goldChart = null; goldCorrChart = null; nokOilChart = null; nokOilCorrChart = null; fedDotChart = null;
+  twdSpotChart = null; krwSpotChart = null; twEqChart = null; krEqChart = null;
   const host = document.getElementById('panels'); host.innerHTML = '';
   drawPositions();
   for (const [key, title, blurb, fn] of PANELS) { const el = panelShell(key, title, blurb); host.appendChild(el); fn(el.querySelector('.body')); }
